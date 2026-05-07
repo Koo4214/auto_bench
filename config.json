@@ -1,0 +1,9 @@
+{
+  "output_path": "D:\\Projects\\auto_bench\\auto_bench-master\\data",
+  "ffmpeg_path": "C:\\Users\\Xpeng\\Desktop\\tools\\ffmpeg-master-latest-win64-gpl\\bin\\ffmpeg.exe",
+  "vehicle_model": "ProbeVehicle",
+  "vehicle_id": "TEST001",
+  "version": "unknown",
+  "tester": "operator",
+  "city": "Shanghai"
+}

@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+
+venv/
+data/
+tmp/
+dist/
+.qoder/
+
+ffmpeg.exe
+ffprobe.exe
