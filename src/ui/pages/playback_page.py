@@ -27,8 +27,69 @@ from PyQt5.QtWidgets import (
 
 from src.services.playback_service import PlaybackService
 from src.ui.i18n import zh
+from src.ui.widgets.active_safety_case_ids import ACTIVE_SAFETY_FUNCTIONS
 from src.ui.widgets.ffmpeg_video_widget import FfmpegVideoWidget
-from src.ui.widgets.issue_editor import PROBLEM_OPTIONS
+from src.ui.widgets.issue_editor import (
+    CAMPUS_EGO_ACTIONS,
+    CAMPUS_PROBLEM_OPTIONS,
+    CAMPUS_ROAD_MARKING_SCHEMA,
+    CAMPUS_ROAD_TEST_FUNCTION,
+    CAMPUS_ROAD_TYPES,
+    CAMPUS_SCENE_TYPES,
+    CAMPUS_TARGET_TYPES,
+    PROBLEM_OPTIONS,
+)
+
+
+LEGACY_ROAD_TYPES = [
+    "Urban main road",
+    "Urban expressway",
+    "Urban narrow road",
+    "Campus ground",
+    "Campus garage",
+]
+
+LEGACY_SCENE_TYPES = [
+    "Straight",
+    "Curve",
+    "Split / merge",
+    "Right turn lane",
+    "Main / side road switch",
+    "U-turn",
+    "Protected straight",
+    "Protected left",
+    "Protected right",
+    "Unprotected straight",
+    "Unprotected left",
+    "Unprotected right",
+    "Roundabout",
+    "Toll station",
+    "Construction",
+    "Gate entry / exit",
+    "Before campus",
+    "After campus",
+    "Drive-to-park in",
+    "Drive-to-park out",
+]
+
+LEGACY_TARGET_TYPES = [
+    "Passenger car",
+    "Truck",
+    "Bus",
+    "Construction vehicle",
+    "Special vehicle",
+    "VRU pedestrian",
+    "VRU two-wheeler",
+    "VRU special",
+    "Obstacle",
+    "None",
+]
+
+LEGACY_EGO_ACTIONS = [
+    "Safety takeover",
+    "Experience takeover",
+    "No action",
+]
 
 
 class PlaybackPage(QWidget):
@@ -37,11 +98,16 @@ class PlaybackPage(QWidget):
         ("时间", "issue_time_text", 128),
         ("经纬度", "latlon", 102),
         ("Case ID", "case_id", 96),
+        ("功能", "active_safety_function", 72),
+        ("模式", "active_safety_mode", 64),
+        ("速度(kph)", "speed_kph", 82),
+        ("结果", "active_safety_result", 92),
         ("道路类型", "road_type", 112),
         ("场景类型", "scene_type", 112),
         ("问题类型", "problem_type", 128),
         ("目标类型", "target_type", 112),
         ("本车操作", "ego_action", 124),
+        ("备注", "comment", 160),
         ("triage", "triage", 76),
         ("triage_time", "triage_time", 138),
     ]
@@ -52,6 +118,9 @@ class PlaybackPage(QWidget):
         ("问题类型", "problem_type"),
         ("目标类型", "target_type"),
         ("本车操作", "ego_action"),
+        ("主动安全功能", "active_safety_function"),
+        ("主动安全模式", "active_safety_mode"),
+        ("主动安全结果", "active_safety_result"),
         ("triage", "triage"),
     ]
 
@@ -128,65 +197,43 @@ class PlaybackPage(QWidget):
         edit_layout = QFormLayout(edit_box)
         edit_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         self.road_type = QComboBox()
-        self._fill_combo(self.road_type, [
-            "Urban main road",
-            "Urban expressway",
-            "Urban narrow road",
-            "Campus ground",
-            "Campus garage",
-        ])
+        self._fill_combo(self.road_type, LEGACY_ROAD_TYPES)
         self.scene_type = QComboBox()
-        self._fill_combo(self.scene_type, [
-            "Straight",
-            "Curve",
-            "Split / merge",
-            "Right turn lane",
-            "Main / side road switch",
-            "U-turn",
-            "Protected straight",
-            "Protected left",
-            "Protected right",
-            "Unprotected straight",
-            "Unprotected left",
-            "Unprotected right",
-            "Roundabout",
-            "Toll station",
-            "Construction",
-            "Gate entry / exit",
-            "Before campus",
-            "After campus",
-            "Drive-to-park in",
-            "Drive-to-park out",
-        ])
+        self._fill_combo(self.scene_type, LEGACY_SCENE_TYPES)
         self.problem_tab = QComboBox()
         self._fill_combo(self.problem_tab, list(PROBLEM_OPTIONS.keys()))
         self.problem_type = QComboBox()
         self.problem_tab.currentIndexChanged.connect(self._refresh_problem_types)
         self._refresh_problem_types(self.problem_tab.currentIndex())
         self.target_type = QComboBox()
-        self._fill_combo(self.target_type, [
-            "Passenger car",
-            "Truck",
-            "Bus",
-            "Construction vehicle",
-            "Special vehicle",
-            "VRU pedestrian",
-            "VRU two-wheeler",
-            "VRU special",
-            "Obstacle",
-            "None",
-        ])
+        self._fill_combo(self.target_type, LEGACY_TARGET_TYPES)
         self.ego_action = QComboBox()
-        self._fill_combo(self.ego_action, [
-            "Safety takeover",
-            "Experience takeover",
-            "No action",
-        ])
+        self._fill_combo(self.ego_action, LEGACY_EGO_ACTIONS)
         self.case_id = QLineEdit()
+        self.active_safety_function = QComboBox()
+        self._fill_combo(self.active_safety_function, list(ACTIVE_SAFETY_FUNCTIONS), include_empty=True)
+        self.active_safety_mode = QComboBox()
+        self._fill_combo(self.active_safety_mode, ["场测", "路试"], include_empty=True)
+        self.speed_kph = QLineEdit()
+        self.takeover_result = QComboBox()
+        self._fill_combo(self.takeover_result, ["pass", "fail"], include_empty=True)
+        self.road_test_result = QComboBox()
+        self._fill_combo(self.road_test_result, ["正触发", "误触发", "漏触发"], include_empty=True)
         self.comment = QTextEdit()
         self.comment.setFixedHeight(56)
         self.comment.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        for combo in [self.road_type, self.scene_type, self.problem_tab, self.problem_type, self.target_type, self.ego_action]:
+        for combo in [
+            self.road_type,
+            self.scene_type,
+            self.problem_tab,
+            self.problem_type,
+            self.target_type,
+            self.ego_action,
+            self.active_safety_function,
+            self.active_safety_mode,
+            self.takeover_result,
+            self.road_test_result,
+        ]:
             combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
             combo.setMinimumContentsLength(16)
             combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -197,6 +244,11 @@ class PlaybackPage(QWidget):
         edit_layout.addRow("目标类型", self.target_type)
         edit_layout.addRow("本车操作", self.ego_action)
         edit_layout.addRow("Case ID", self.case_id)
+        edit_layout.addRow("主动安全功能", self.active_safety_function)
+        edit_layout.addRow("主动安全模式", self.active_safety_mode)
+        edit_layout.addRow("速度(kph)", self.speed_kph)
+        edit_layout.addRow("测试结果", self.takeover_result)
+        edit_layout.addRow("路试结果", self.road_test_result)
         edit_layout.addRow("备注", self.comment)
         left_layout.addWidget(edit_box)
 
@@ -269,8 +321,10 @@ class PlaybackPage(QWidget):
         self._set_edit_enabled(False)
         self._apply_panel_widths()
 
-    def _fill_combo(self, combo: QComboBox, values: List[str]) -> None:
+    def _fill_combo(self, combo: QComboBox, values: List[str], include_empty: bool = False) -> None:
         combo.clear()
+        if include_empty:
+            combo.addItem("", "")
         for value in values:
             combo.addItem(zh(value), value)
 
@@ -283,6 +337,53 @@ class PlaybackPage(QWidget):
         index = combo.findData(value)
         if index >= 0:
             combo.setCurrentIndex(index)
+
+    def _issue_value(self, issue: Dict[str, object], field_key: str) -> object:
+        if field_key == "active_safety_result":
+            return issue.get("takeover_result") or issue.get("road_test_result") or ""
+        if field_key == "case_id" and self._issue_schema(issue) == CAMPUS_ROAD_MARKING_SCHEMA:
+            return ""
+        return issue.get(field_key, "")
+
+    def _issue_schema(self, issue: Optional[Dict[str, object]]) -> str:
+        if issue and issue.get('marking_schema') == 'active_safety':
+            return 'active_safety'
+        if issue and issue.get('marking_schema') == CAMPUS_ROAD_MARKING_SCHEMA:
+            return CAMPUS_ROAD_MARKING_SCHEMA
+        if self.current_run and self.current_run.get('test_function') == CAMPUS_ROAD_TEST_FUNCTION:
+            return CAMPUS_ROAD_MARKING_SCHEMA
+        return 'legacy'
+
+    def _is_campus_road_issue(self, issue: Optional[Dict[str, object]]) -> bool:
+        return self._issue_schema(issue) == CAMPUS_ROAD_MARKING_SCHEMA
+
+    def _standard_problem_options(self) -> Dict[str, List[str]]:
+        if self._is_campus_road_issue(self.current_issue):
+            return CAMPUS_PROBLEM_OPTIONS
+        return PROBLEM_OPTIONS
+
+    def _apply_standard_combo_options(self, schema: str) -> None:
+        if schema == CAMPUS_ROAD_MARKING_SCHEMA:
+            road_types = CAMPUS_ROAD_TYPES
+            scene_types = CAMPUS_SCENE_TYPES
+            problem_options = CAMPUS_PROBLEM_OPTIONS
+            target_types = CAMPUS_TARGET_TYPES
+            ego_actions = CAMPUS_EGO_ACTIONS
+        else:
+            road_types = LEGACY_ROAD_TYPES
+            scene_types = LEGACY_SCENE_TYPES
+            problem_options = PROBLEM_OPTIONS
+            target_types = LEGACY_TARGET_TYPES
+            ego_actions = LEGACY_EGO_ACTIONS
+
+        self.problem_tab.blockSignals(True)
+        self._fill_combo(self.road_type, road_types)
+        self._fill_combo(self.scene_type, scene_types)
+        self._fill_combo(self.problem_tab, list(problem_options.keys()))
+        self._fill_combo(self.target_type, target_types)
+        self._fill_combo(self.ego_action, ego_actions)
+        self.problem_tab.blockSignals(False)
+        self._refresh_problem_types(self.problem_tab.currentIndex())
 
     def set_output_path(self, output_path: str) -> None:
         self.output_path.setText(output_path)
@@ -343,7 +444,7 @@ class PlaybackPage(QWidget):
         self.filter_value_box.addItem('全部', '')
         values = []
         for issue in self.all_issues:
-            raw = issue.get(field_key, '')
+            raw = self._issue_value(issue, field_key)
             if raw is None:
                 continue
             text = str(raw).strip()
@@ -368,7 +469,7 @@ class PlaybackPage(QWidget):
         field_value = str(self.filter_value_box.currentData() or '')
         self.visible_issues = []
         for issue in self.all_issues:
-            if field_value and str(issue.get(field_key, '')) != field_value:
+            if field_value and str(self._issue_value(issue, field_key)) != field_value:
                 continue
             self.visible_issues.append(issue)
 
@@ -396,12 +497,17 @@ class PlaybackPage(QWidget):
                 'seq_no': issue.get('seq_no', ''),
                 'issue_time_text': issue.get('issue_time_text', ''),
                 'latlon': latlon,
-                'case_id': issue.get('case_id', ''),
+                'case_id': self._issue_value(issue, 'case_id'),
+                'active_safety_function': issue.get('active_safety_function', ''),
+                'active_safety_mode': issue.get('active_safety_mode', ''),
+                'speed_kph': issue.get('speed_kph', ''),
+                'active_safety_result': self._issue_value(issue, 'active_safety_result'),
                 'road_type': zh(issue.get('road_type', '')),
                 'scene_type': zh(issue.get('scene_type', '')),
                 'problem_type': zh(issue.get('problem_type', '')),
                 'target_type': zh(issue.get('target_type', '')),
                 'ego_action': zh(issue.get('ego_action', '')),
+                'comment': issue.get('comment', ''),
                 'triage': zh(issue.get('triage', 'untriaged')),
                 'triage_time': issue.get('triage_time', '') or '',
             }
@@ -511,6 +617,33 @@ class PlaybackPage(QWidget):
             'case_id': self.case_id.text().strip(),
             'comment': self.comment.toPlainText().strip(),
         }
+        if self.current_issue.get('marking_schema') == 'active_safety':
+            active_mode = self._combo_value(self.active_safety_mode)
+            is_field_test = active_mode == '场测'
+            takeover_result = self._combo_value(self.takeover_result) if is_field_test else ''
+            road_test_result = self._combo_value(self.road_test_result) if not is_field_test else ''
+            updates.update({
+                'marking_schema': 'active_safety',
+                'active_safety_function': self._combo_value(self.active_safety_function),
+                'active_safety_mode': active_mode,
+                'speed_kph': self.speed_kph.text().strip() if is_field_test else '',
+                'takeover_result': takeover_result,
+                'road_test_result': road_test_result,
+                'case_id': self.case_id.text().strip() if is_field_test else '',
+                'problem_tab': 'Active safety',
+                'problem_type': self._combo_value(self.active_safety_function),
+                'ego_action': takeover_result or road_test_result,
+            })
+        elif self._is_campus_road_issue(self.current_issue):
+            updates.update({
+                'marking_schema': CAMPUS_ROAD_MARKING_SCHEMA,
+                'case_id': '',
+                'active_safety_function': '',
+                'active_safety_mode': '',
+                'speed_kph': '',
+                'takeover_result': '',
+                'road_test_result': '',
+            })
         run_root = Path(str(self.current_run['run_root']))
         updated = self.playback_service.update_issue(run_root, str(self.current_issue['issue_id']), updates)
         self.append_log(f"已更新 issue：{updated['issue_id']}")
@@ -547,10 +680,11 @@ class PlaybackPage(QWidget):
     def _refresh_problem_types(self, _index: int) -> None:
         current_value = self._combo_value(self.problem_type)
         problem_tab = self._combo_value(self.problem_tab)
-        self._fill_combo(self.problem_type, PROBLEM_OPTIONS.get(problem_tab, []))
+        self._fill_combo(self.problem_type, self._standard_problem_options().get(problem_tab, []))
         self._set_combo_value(self.problem_type, current_value)
 
     def _load_issue_into_editor(self, issue: Dict[str, object]) -> None:
+        self._apply_standard_combo_options(self._issue_schema(issue))
         self._set_combo_value(self.road_type, str(issue.get('road_type', '')))
         self._set_combo_value(self.scene_type, str(issue.get('scene_type', '')))
         tab_name = str(issue.get('problem_tab', ''))
@@ -560,7 +694,15 @@ class PlaybackPage(QWidget):
         self._set_combo_value(self.problem_type, str(issue.get('problem_type', '')))
         self._set_combo_value(self.target_type, str(issue.get('target_type', '')))
         self._set_combo_value(self.ego_action, str(issue.get('ego_action', '')))
-        self.case_id.setText(str(issue.get('case_id', '')))
+        if self._is_campus_road_issue(issue):
+            self.case_id.setText("")
+        else:
+            self.case_id.setText(str(issue.get('case_id', '')))
+        self._set_combo_value(self.active_safety_function, str(issue.get('active_safety_function', '')))
+        self._set_combo_value(self.active_safety_mode, str(issue.get('active_safety_mode', '')))
+        self.speed_kph.setText(str(issue.get('speed_kph', '')))
+        self._set_combo_value(self.takeover_result, str(issue.get('takeover_result', '')))
+        self._set_combo_value(self.road_test_result, str(issue.get('road_test_result', '')))
         self.comment.setPlainText(str(issue.get('comment', '')))
 
     def _select_issue_by_id(self, issue_id: str) -> None:
@@ -572,6 +714,13 @@ class PlaybackPage(QWidget):
 
     def _set_edit_enabled(self, enabled: bool) -> None:
         self.edit_mode = enabled
+        is_active_safety = bool(
+            self._issue_schema(self.current_issue) == 'active_safety'
+        )
+        is_campus_road = self._is_campus_road_issue(self.current_issue)
+        standard_enabled = enabled and not is_active_safety
+        active_enabled = enabled and is_active_safety
+
         for widget in [
             self.road_type,
             self.scene_type,
@@ -579,8 +728,21 @@ class PlaybackPage(QWidget):
             self.problem_type,
             self.target_type,
             self.ego_action,
-            self.case_id,
+        ]:
+            widget.setEnabled(standard_enabled)
+
+        for widget in [
+            self.active_safety_function,
+            self.active_safety_mode,
+            self.speed_kph,
+            self.takeover_result,
+            self.road_test_result,
+        ]:
+            widget.setEnabled(active_enabled)
+
+        for widget in [
             self.comment,
         ]:
             widget.setEnabled(enabled)
+        self.case_id.setEnabled(enabled and not is_campus_road)
         self.save_btn.setEnabled(enabled)

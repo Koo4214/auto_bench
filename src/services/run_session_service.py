@@ -206,6 +206,12 @@ class RunSessionService:
         ego_action: str = "NoAction",
         case_id: str = "",
         comment: str = "",
+        marking_schema: str = "legacy",
+        active_safety_function: str = "",
+        active_safety_mode: str = "",
+        speed_kph: str = "",
+        takeover_result: str = "",
+        road_test_result: str = "",
     ):
         if not self.status or not self.issue_service:
             raise RuntimeError("run not started")
@@ -229,6 +235,12 @@ class RunSessionService:
             ego_action=ego_action,
             case_id=case_id,
             comment=comment,
+            marking_schema=marking_schema,
+            active_safety_function=active_safety_function,
+            active_safety_mode=active_safety_mode,
+            speed_kph=speed_kph,
+            takeover_result=takeover_result,
+            road_test_result=road_test_result,
         )
         self.status = replace(self.status, issue_count=len(self.issue_service.issues))
         self.repository.save_status(self.paths.status_file, self.status)
@@ -410,10 +422,17 @@ class RunSessionService:
             chart_timestamp = float(rtk_sample['local_timestamp'])
         elif imu_sample and imu_sample.get('local_timestamp') is not None:
             chart_timestamp = float(imu_sample['local_timestamp'])
+        case_id_counts: Dict[str, int] = {}
+        if self.issue_service:
+            for issue in self.issue_service.issues:
+                case_id = issue.case_id.strip()
+                if case_id:
+                    case_id_counts[case_id] = case_id_counts.get(case_id, 0) + 1
         return {
             "run_state": self.status.state.value if self.status else "idle",
             "run_id": self.status.run_id if self.status else None,
             "issue_count": self.status.issue_count if self.status else 0,
+            "case_id_counts": case_id_counts,
             "rtk_connected": self.rtk_driver.connected if self.rtk_driver else False,
             "rtk_source": getattr(self.rtk_driver, 'mode_label', 'live') if self.rtk_driver else None,
             "rtk_last_speed": rtk_sample.get("vehicle_speed") if rtk_sample else None,

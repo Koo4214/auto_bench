@@ -30,6 +30,12 @@ class IssueService:
         ego_action: str,
         case_id: str = "",
         comment: str = "",
+        marking_schema: str = "legacy",
+        active_safety_function: str = "",
+        active_safety_mode: str = "",
+        speed_kph: str = "",
+        takeover_result: str = "",
+        road_test_result: str = "",
     ) -> IssueRecord:
         seq_no = len(self.issues) + 1
         safe_problem = problem_tab.replace("/", "-")
@@ -59,6 +65,12 @@ class IssueService:
             triage=TriageStatus.UNTRIAGED,
             triage_time=None,
             clip_status=ClipStatus.PENDING,
+            marking_schema=marking_schema,
+            active_safety_function=active_safety_function,
+            active_safety_mode=active_safety_mode,
+            speed_kph=speed_kph,
+            takeover_result=takeover_result,
+            road_test_result=road_test_result,
         )
         self.issues.append(issue)
         self._persist()

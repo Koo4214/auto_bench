@@ -255,6 +255,7 @@ class MainWindow(QMainWindow):
         run_form = dict(self.pending_form)
         run_form["test_function"] = self.calibration_page.test_function_value()
         paths = self.service.create_run(run_form)
+        self.recording_page.issue_editor.set_test_function(run_form["test_function"])
         self.calibration_page.append_log(f"已创建 run 目录：{paths.root}")
         self.setup_page.append_log(f"已创建 run 目录：{paths.root}")
         self.calibration_page.append_log(f"测试功能：{run_form['test_function']}")
