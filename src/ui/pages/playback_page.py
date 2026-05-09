@@ -25,20 +25,32 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+from src.domain.test_functions import DEFAULT_TEST_FUNCTION, normalize_test_function
 from src.services.playback_service import PlaybackService
 from src.ui.i18n import zh
 from src.ui.widgets.active_safety_case_ids import ACTIVE_SAFETY_FUNCTIONS
 from src.ui.widgets.ffmpeg_video_widget import FfmpegVideoWidget
 from src.ui.widgets.issue_editor import (
     CAMPUS_EGO_ACTIONS,
+    CAMPUS_FIELD_MARKING_SCHEMA,
+    CAMPUS_FIELD_TEST_FUNCTION,
     CAMPUS_PROBLEM_OPTIONS,
     CAMPUS_ROAD_MARKING_SCHEMA,
     CAMPUS_ROAD_TEST_FUNCTION,
     CAMPUS_ROAD_TYPES,
     CAMPUS_SCENE_TYPES,
     CAMPUS_TARGET_TYPES,
+    PARKING_MARKING_SCHEMA,
+    PARKING_TEST_FUNCTION,
     PROBLEM_OPTIONS,
 )
+from src.ui.widgets.highway_kpi_tags import (
+    HIGHWAY_MARKING_SCHEMA,
+    HIGHWAY_PROBLEM_TAB,
+    HIGHWAY_TEST_FUNCTION,
+    load_highway_kpi_tag_catalog,
+)
+from src.ui.widgets.parking_case_ids import PARKING_SUBJECT_SCENES
 
 
 LEGACY_ROAD_TYPES = [
@@ -91,6 +103,10 @@ LEGACY_EGO_ACTIONS = [
     "No action",
 ]
 
+PARKING_SPACE_CATEGORIES = ["地面车位", "地库车位"]
+PARKING_SUCCESS_RESULTS = ["成功", "失败"]
+PARKING_QUALIFIED_RESULTS = ["合格", "不合格"]
+
 
 class PlaybackPage(QWidget):
     TABLE_COLUMNS = [
@@ -101,10 +117,21 @@ class PlaybackPage(QWidget):
         ("功能", "active_safety_function", 72),
         ("模式", "active_safety_mode", 64),
         ("速度(kph)", "speed_kph", 82),
-        ("结果", "active_safety_result", 92),
+        ("结果", "test_result", 92),
+        ("科目场景", "parking_subject_scene", 88),
+        ("车位分类", "parking_space_category", 88),
+        ("识别", "recognition_result", 64),
+        ("泊入", "park_in_result", 64),
+        ("泊出", "park_out_result", 64),
+        ("避障", "obstacle_result", 64),
+        ("位姿", "pose_result", 64),
+        ("顿挫", "jerk_result", 64),
+        ("泊车时间(s)", "parking_time_sec", 92),
+        ("揉库次数", "maneuver_count", 76),
         ("道路类型", "road_type", 112),
         ("场景类型", "scene_type", 112),
         ("问题类型", "problem_type", 128),
+        ("严重程度", "severity_level", 92),
         ("目标类型", "target_type", 112),
         ("本车操作", "ego_action", 124),
         ("备注", "comment", 160),
@@ -116,11 +143,21 @@ class PlaybackPage(QWidget):
         ("场景类型", "scene_type"),
         ("问题大类", "problem_tab"),
         ("问题类型", "problem_type"),
+        ("严重程度", "severity_level"),
         ("目标类型", "target_type"),
         ("本车操作", "ego_action"),
         ("主动安全功能", "active_safety_function"),
         ("主动安全模式", "active_safety_mode"),
+        ("测试结果", "test_result"),
         ("主动安全结果", "active_safety_result"),
+        ("科目场景", "parking_subject_scene"),
+        ("车位分类", "parking_space_category"),
+        ("识别结果", "recognition_result"),
+        ("泊入结果", "park_in_result"),
+        ("泊出结果", "park_out_result"),
+        ("避障结果", "obstacle_result"),
+        ("位姿结果", "pose_result"),
+        ("顿挫", "jerk_result"),
         ("triage", "triage"),
     ]
 
@@ -209,6 +246,8 @@ class PlaybackPage(QWidget):
         self._fill_combo(self.target_type, LEGACY_TARGET_TYPES)
         self.ego_action = QComboBox()
         self._fill_combo(self.ego_action, LEGACY_EGO_ACTIONS)
+        self.severity_level = QComboBox()
+        self._fill_combo(self.severity_level, [], include_empty=True)
         self.case_id = QLineEdit()
         self.active_safety_function = QComboBox()
         self._fill_combo(self.active_safety_function, list(ACTIVE_SAFETY_FUNCTIONS), include_empty=True)
@@ -219,6 +258,24 @@ class PlaybackPage(QWidget):
         self._fill_combo(self.takeover_result, ["pass", "fail"], include_empty=True)
         self.road_test_result = QComboBox()
         self._fill_combo(self.road_test_result, ["正触发", "误触发", "漏触发"], include_empty=True)
+        self.parking_subject_scene = QComboBox()
+        self._fill_combo(self.parking_subject_scene, list(PARKING_SUBJECT_SCENES), include_empty=True)
+        self.parking_space_category = QComboBox()
+        self._fill_combo(self.parking_space_category, PARKING_SPACE_CATEGORIES, include_empty=True)
+        self.recognition_result = QComboBox()
+        self._fill_combo(self.recognition_result, PARKING_SUCCESS_RESULTS, include_empty=True)
+        self.park_in_result = QComboBox()
+        self._fill_combo(self.park_in_result, PARKING_SUCCESS_RESULTS, include_empty=True)
+        self.park_out_result = QComboBox()
+        self._fill_combo(self.park_out_result, PARKING_SUCCESS_RESULTS, include_empty=True)
+        self.obstacle_result = QComboBox()
+        self._fill_combo(self.obstacle_result, PARKING_SUCCESS_RESULTS, include_empty=True)
+        self.pose_result = QComboBox()
+        self._fill_combo(self.pose_result, PARKING_QUALIFIED_RESULTS, include_empty=True)
+        self.jerk_result = QComboBox()
+        self._fill_combo(self.jerk_result, PARKING_QUALIFIED_RESULTS, include_empty=True)
+        self.parking_time_sec = QLineEdit()
+        self.maneuver_count = QLineEdit()
         self.comment = QTextEdit()
         self.comment.setFixedHeight(56)
         self.comment.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -229,10 +286,19 @@ class PlaybackPage(QWidget):
             self.problem_type,
             self.target_type,
             self.ego_action,
+            self.severity_level,
             self.active_safety_function,
             self.active_safety_mode,
             self.takeover_result,
             self.road_test_result,
+            self.parking_subject_scene,
+            self.parking_space_category,
+            self.recognition_result,
+            self.park_in_result,
+            self.park_out_result,
+            self.obstacle_result,
+            self.pose_result,
+            self.jerk_result,
         ]:
             combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
             combo.setMinimumContentsLength(16)
@@ -243,12 +309,23 @@ class PlaybackPage(QWidget):
         edit_layout.addRow("问题类型", self.problem_type)
         edit_layout.addRow("目标类型", self.target_type)
         edit_layout.addRow("本车操作", self.ego_action)
+        edit_layout.addRow("严重程度", self.severity_level)
         edit_layout.addRow("Case ID", self.case_id)
         edit_layout.addRow("主动安全功能", self.active_safety_function)
         edit_layout.addRow("主动安全模式", self.active_safety_mode)
         edit_layout.addRow("速度(kph)", self.speed_kph)
         edit_layout.addRow("测试结果", self.takeover_result)
         edit_layout.addRow("路试结果", self.road_test_result)
+        edit_layout.addRow("泊车科目场景", self.parking_subject_scene)
+        edit_layout.addRow("泊车车位分类", self.parking_space_category)
+        edit_layout.addRow("识别结果", self.recognition_result)
+        edit_layout.addRow("泊入结果", self.park_in_result)
+        edit_layout.addRow("泊出结果", self.park_out_result)
+        edit_layout.addRow("避障结果", self.obstacle_result)
+        edit_layout.addRow("位姿结果", self.pose_result)
+        edit_layout.addRow("顿挫", self.jerk_result)
+        edit_layout.addRow("泊车时间(s)", self.parking_time_sec)
+        edit_layout.addRow("揉库次数", self.maneuver_count)
         edit_layout.addRow("备注", self.comment)
         left_layout.addWidget(edit_box)
 
@@ -339,8 +416,14 @@ class PlaybackPage(QWidget):
             combo.setCurrentIndex(index)
 
     def _issue_value(self, issue: Dict[str, object], field_key: str) -> object:
+        if field_key == "test_result":
+            return issue.get("test_result") or issue.get("takeover_result") or issue.get("road_test_result") or ""
         if field_key == "active_safety_result":
             return issue.get("takeover_result") or issue.get("road_test_result") or ""
+        if field_key == "parking_subject_scene":
+            return issue.get("parking_subject_scene") or issue.get("scene_type") or ""
+        if field_key == "parking_space_category":
+            return issue.get("parking_space_category") or issue.get("road_type") or ""
         if field_key == "case_id" and self._issue_schema(issue) == CAMPUS_ROAD_MARKING_SCHEMA:
             return ""
         return issue.get(field_key, "")
@@ -350,16 +433,42 @@ class PlaybackPage(QWidget):
             return 'active_safety'
         if issue and issue.get('marking_schema') == CAMPUS_ROAD_MARKING_SCHEMA:
             return CAMPUS_ROAD_MARKING_SCHEMA
-        if self.current_run and self.current_run.get('test_function') == CAMPUS_ROAD_TEST_FUNCTION:
+        if issue and issue.get('marking_schema') == CAMPUS_FIELD_MARKING_SCHEMA:
+            return CAMPUS_FIELD_MARKING_SCHEMA
+        if issue and issue.get('marking_schema') == HIGHWAY_MARKING_SCHEMA:
+            return HIGHWAY_MARKING_SCHEMA
+        if issue and issue.get('marking_schema') == PARKING_MARKING_SCHEMA:
+            return PARKING_MARKING_SCHEMA
+        current_test_function = normalize_test_function(self.current_run.get('test_function')) if self.current_run else ''
+        if current_test_function == CAMPUS_FIELD_TEST_FUNCTION:
+            return CAMPUS_FIELD_MARKING_SCHEMA
+        if current_test_function == CAMPUS_ROAD_TEST_FUNCTION:
             return CAMPUS_ROAD_MARKING_SCHEMA
+        if current_test_function == HIGHWAY_TEST_FUNCTION:
+            return HIGHWAY_MARKING_SCHEMA
+        if current_test_function == PARKING_TEST_FUNCTION:
+            return PARKING_MARKING_SCHEMA
         return 'legacy'
 
     def _is_campus_road_issue(self, issue: Optional[Dict[str, object]]) -> bool:
         return self._issue_schema(issue) == CAMPUS_ROAD_MARKING_SCHEMA
 
+    def _is_campus_field_issue(self, issue: Optional[Dict[str, object]]) -> bool:
+        return self._issue_schema(issue) == CAMPUS_FIELD_MARKING_SCHEMA
+
+    def _is_highway_issue(self, issue: Optional[Dict[str, object]]) -> bool:
+        return self._issue_schema(issue) == HIGHWAY_MARKING_SCHEMA
+
+    def _is_parking_issue(self, issue: Optional[Dict[str, object]]) -> bool:
+        return self._issue_schema(issue) == PARKING_MARKING_SCHEMA
+
     def _standard_problem_options(self) -> Dict[str, List[str]]:
         if self._is_campus_road_issue(self.current_issue):
             return CAMPUS_PROBLEM_OPTIONS
+        if self._is_highway_issue(self.current_issue):
+            return load_highway_kpi_tag_catalog().problem_options()
+        if self._is_parking_issue(self.current_issue):
+            return {"Parking": list(PARKING_SUBJECT_SCENES)}
         return PROBLEM_OPTIONS
 
     def _apply_standard_combo_options(self, schema: str) -> None:
@@ -369,12 +478,29 @@ class PlaybackPage(QWidget):
             problem_options = CAMPUS_PROBLEM_OPTIONS
             target_types = CAMPUS_TARGET_TYPES
             ego_actions = CAMPUS_EGO_ACTIONS
+            severity_levels: List[str] = []
+        elif schema == HIGHWAY_MARKING_SCHEMA:
+            catalog = load_highway_kpi_tag_catalog()
+            road_types = [""]
+            scene_types = list(catalog.test_scenes)
+            problem_options = catalog.problem_options()
+            target_types = [""]
+            ego_actions = list(catalog.ego_actions)
+            severity_levels = list(catalog.severity_levels)
+        elif schema == PARKING_MARKING_SCHEMA:
+            road_types = PARKING_SPACE_CATEGORIES
+            scene_types = list(PARKING_SUBJECT_SCENES)
+            problem_options = {"Parking": list(PARKING_SUBJECT_SCENES)}
+            target_types = [""]
+            ego_actions = PARKING_SUCCESS_RESULTS
+            severity_levels = []
         else:
             road_types = LEGACY_ROAD_TYPES
             scene_types = LEGACY_SCENE_TYPES
             problem_options = PROBLEM_OPTIONS
             target_types = LEGACY_TARGET_TYPES
             ego_actions = LEGACY_EGO_ACTIONS
+            severity_levels = []
 
         self.problem_tab.blockSignals(True)
         self._fill_combo(self.road_type, road_types)
@@ -382,6 +508,7 @@ class PlaybackPage(QWidget):
         self._fill_combo(self.problem_tab, list(problem_options.keys()))
         self._fill_combo(self.target_type, target_types)
         self._fill_combo(self.ego_action, ego_actions)
+        self._fill_combo(self.severity_level, severity_levels, include_empty=not severity_levels)
         self.problem_tab.blockSignals(False)
         self._refresh_problem_types(self.problem_tab.currentIndex())
 
@@ -413,7 +540,7 @@ class PlaybackPage(QWidget):
         for run in runs:
             state_text = zh(run.get('state', ''))
             issue_count = run.get('issue_count', 0)
-            test_function = run.get('test_function', '行车-外部路测试')
+            test_function = normalize_test_function(run.get('test_function', DEFAULT_TEST_FUNCTION))
             display_name = f"{run.get('test_date', '-')} | {test_function} | {run.get('vehicle_model', '-')} | {run.get('vehicle_id', '-')} | {run.get('run_id', '-')} | {state_text} | 问题数={issue_count}"
             item = QListWidgetItem(display_name)
             item.setData(Qt.UserRole, run)
@@ -434,7 +561,8 @@ class PlaybackPage(QWidget):
         self.all_issues = self.playback_service.load_issues(run_root)
         self._refresh_filter_values()
         self.apply_issue_filters()
-        self.append_log(f"已为 {run['run_id']} 加载 {len(self.all_issues)} 个 issue，测试功能：{run.get('test_function', '行车-外部路测试')}")
+        test_function = normalize_test_function(run.get('test_function', DEFAULT_TEST_FUNCTION))
+        self.append_log(f"已为 {run['run_id']} 加载 {len(self.all_issues)} 个 issue，测试功能：{test_function}")
 
     def _refresh_filter_values(self) -> None:
         field_key = str(self.filter_field_box.currentData() or '')
@@ -501,10 +629,22 @@ class PlaybackPage(QWidget):
                 'active_safety_function': issue.get('active_safety_function', ''),
                 'active_safety_mode': issue.get('active_safety_mode', ''),
                 'speed_kph': issue.get('speed_kph', ''),
+                'test_result': self._issue_value(issue, 'test_result'),
                 'active_safety_result': self._issue_value(issue, 'active_safety_result'),
+                'parking_subject_scene': self._issue_value(issue, 'parking_subject_scene'),
+                'parking_space_category': self._issue_value(issue, 'parking_space_category'),
+                'recognition_result': issue.get('recognition_result', ''),
+                'park_in_result': issue.get('park_in_result', ''),
+                'park_out_result': issue.get('park_out_result', ''),
+                'obstacle_result': issue.get('obstacle_result', ''),
+                'pose_result': issue.get('pose_result', ''),
+                'jerk_result': issue.get('jerk_result', ''),
+                'parking_time_sec': issue.get('parking_time_sec', ''),
+                'maneuver_count': issue.get('maneuver_count', ''),
                 'road_type': zh(issue.get('road_type', '')),
                 'scene_type': zh(issue.get('scene_type', '')),
                 'problem_type': zh(issue.get('problem_type', '')),
+                'severity_level': issue.get('severity_level', ''),
                 'target_type': zh(issue.get('target_type', '')),
                 'ego_action': zh(issue.get('ego_action', '')),
                 'comment': issue.get('comment', ''),
@@ -614,6 +754,7 @@ class PlaybackPage(QWidget):
             'problem_type': self._combo_value(self.problem_type),
             'target_type': self._combo_value(self.target_type),
             'ego_action': self._combo_value(self.ego_action),
+            'severity_level': self._combo_value(self.severity_level),
             'case_id': self.case_id.text().strip(),
             'comment': self.comment.toPlainText().strip(),
         }
@@ -633,6 +774,72 @@ class PlaybackPage(QWidget):
                 'problem_tab': 'Active safety',
                 'problem_type': self._combo_value(self.active_safety_function),
                 'ego_action': takeover_result or road_test_result,
+            })
+        elif self._is_campus_field_issue(self.current_issue):
+            test_result = self._combo_value(self.takeover_result)
+            updates.update({
+                'marking_schema': CAMPUS_FIELD_MARKING_SCHEMA,
+                'case_id': self.case_id.text().strip(),
+                'test_result': test_result,
+                'problem_tab': 'Campus field',
+                'problem_type': CAMPUS_FIELD_TEST_FUNCTION,
+                'ego_action': test_result,
+                'road_type': '',
+                'scene_type': '',
+                'target_type': '',
+                'active_safety_function': '',
+                'active_safety_mode': '',
+                'speed_kph': '',
+                'takeover_result': '',
+                'road_test_result': '',
+            })
+        elif self._is_highway_issue(self.current_issue):
+            updates.update({
+                'marking_schema': HIGHWAY_MARKING_SCHEMA,
+                'road_type': '',
+                'scene_type': self._combo_value(self.scene_type),
+                'problem_tab': HIGHWAY_PROBLEM_TAB,
+                'problem_type': self._combo_value(self.problem_type),
+                'target_type': '',
+                'ego_action': self._combo_value(self.ego_action),
+                'case_id': '',
+                'severity_level': self._combo_value(self.severity_level),
+                'active_safety_function': '',
+                'active_safety_mode': '',
+                'speed_kph': '',
+                'takeover_result': '',
+                'road_test_result': '',
+                'test_result': '',
+            })
+        elif self._is_parking_issue(self.current_issue):
+            subject_scene = self._combo_value(self.parking_subject_scene)
+            space_category = self._combo_value(self.parking_space_category)
+            updates.update({
+                'marking_schema': PARKING_MARKING_SCHEMA,
+                'road_type': space_category,
+                'scene_type': subject_scene,
+                'problem_tab': 'Parking',
+                'problem_type': subject_scene,
+                'target_type': '',
+                'ego_action': self._combo_value(self.park_in_result) or self._combo_value(self.park_out_result),
+                'case_id': self.case_id.text().strip(),
+                'parking_subject_scene': subject_scene,
+                'parking_space_category': space_category,
+                'recognition_result': self._combo_value(self.recognition_result),
+                'park_in_result': self._combo_value(self.park_in_result),
+                'park_out_result': self._combo_value(self.park_out_result),
+                'obstacle_result': self._combo_value(self.obstacle_result),
+                'pose_result': self._combo_value(self.pose_result),
+                'jerk_result': self._combo_value(self.jerk_result),
+                'parking_time_sec': self.parking_time_sec.text().strip(),
+                'maneuver_count': self.maneuver_count.text().strip(),
+                'active_safety_function': '',
+                'active_safety_mode': '',
+                'speed_kph': '',
+                'takeover_result': '',
+                'road_test_result': '',
+                'test_result': '',
+                'severity_level': '',
             })
         elif self._is_campus_road_issue(self.current_issue):
             updates.update({
@@ -685,6 +892,10 @@ class PlaybackPage(QWidget):
 
     def _load_issue_into_editor(self, issue: Dict[str, object]) -> None:
         self._apply_standard_combo_options(self._issue_schema(issue))
+        if self._is_campus_field_issue(issue):
+            self._fill_combo(self.takeover_result, ["通过", "失败"], include_empty=True)
+        else:
+            self._fill_combo(self.takeover_result, ["pass", "fail"], include_empty=True)
         self._set_combo_value(self.road_type, str(issue.get('road_type', '')))
         self._set_combo_value(self.scene_type, str(issue.get('scene_type', '')))
         tab_name = str(issue.get('problem_tab', ''))
@@ -694,15 +905,35 @@ class PlaybackPage(QWidget):
         self._set_combo_value(self.problem_type, str(issue.get('problem_type', '')))
         self._set_combo_value(self.target_type, str(issue.get('target_type', '')))
         self._set_combo_value(self.ego_action, str(issue.get('ego_action', '')))
-        if self._is_campus_road_issue(issue):
+        self._set_combo_value(self.severity_level, str(issue.get('severity_level', '')))
+        if self._is_campus_road_issue(issue) or self._is_highway_issue(issue):
             self.case_id.setText("")
         else:
             self.case_id.setText(str(issue.get('case_id', '')))
         self._set_combo_value(self.active_safety_function, str(issue.get('active_safety_function', '')))
         self._set_combo_value(self.active_safety_mode, str(issue.get('active_safety_mode', '')))
         self.speed_kph.setText(str(issue.get('speed_kph', '')))
-        self._set_combo_value(self.takeover_result, str(issue.get('takeover_result', '')))
+        if self._is_campus_field_issue(issue):
+            self._set_combo_value(self.takeover_result, str(issue.get('test_result', '')))
+        else:
+            self._set_combo_value(self.takeover_result, str(issue.get('takeover_result', '')))
         self._set_combo_value(self.road_test_result, str(issue.get('road_test_result', '')))
+        self._set_combo_value(
+            self.parking_subject_scene,
+            str(issue.get('parking_subject_scene') or issue.get('scene_type') or ''),
+        )
+        self._set_combo_value(
+            self.parking_space_category,
+            str(issue.get('parking_space_category') or issue.get('road_type') or ''),
+        )
+        self._set_combo_value(self.recognition_result, str(issue.get('recognition_result', '')))
+        self._set_combo_value(self.park_in_result, str(issue.get('park_in_result', '')))
+        self._set_combo_value(self.park_out_result, str(issue.get('park_out_result', '')))
+        self._set_combo_value(self.obstacle_result, str(issue.get('obstacle_result', '')))
+        self._set_combo_value(self.pose_result, str(issue.get('pose_result', '')))
+        self._set_combo_value(self.jerk_result, str(issue.get('jerk_result', '')))
+        self.parking_time_sec.setText(str(issue.get('parking_time_sec', '')))
+        self.maneuver_count.setText(str(issue.get('maneuver_count', '')))
         self.comment.setPlainText(str(issue.get('comment', '')))
 
     def _select_issue_by_id(self, issue_id: str) -> None:
@@ -718,31 +949,48 @@ class PlaybackPage(QWidget):
             self._issue_schema(self.current_issue) == 'active_safety'
         )
         is_campus_road = self._is_campus_road_issue(self.current_issue)
-        standard_enabled = enabled and not is_active_safety
+        is_campus_field = self._is_campus_field_issue(self.current_issue)
+        is_highway = self._is_highway_issue(self.current_issue)
+        is_parking = self._is_parking_issue(self.current_issue)
+        standard_enabled = enabled and not is_active_safety and not is_parking
         active_enabled = enabled and is_active_safety
+        campus_field_enabled = enabled and is_campus_field
+        parking_enabled = enabled and is_parking
 
-        for widget in [
-            self.road_type,
-            self.scene_type,
-            self.problem_tab,
-            self.problem_type,
-            self.target_type,
-            self.ego_action,
-        ]:
-            widget.setEnabled(standard_enabled)
+        standard_field_enabled = standard_enabled and not is_campus_field
+        self.road_type.setEnabled(standard_field_enabled and not is_highway)
+        self.scene_type.setEnabled(standard_field_enabled)
+        self.problem_tab.setEnabled(standard_field_enabled and not is_highway)
+        self.problem_type.setEnabled(standard_field_enabled)
+        self.target_type.setEnabled(standard_field_enabled and not is_highway)
+        self.ego_action.setEnabled(standard_field_enabled)
+        self.severity_level.setEnabled(enabled and is_highway)
 
         for widget in [
             self.active_safety_function,
             self.active_safety_mode,
             self.speed_kph,
-            self.takeover_result,
             self.road_test_result,
         ]:
             widget.setEnabled(active_enabled)
 
+        self.takeover_result.setEnabled(active_enabled or campus_field_enabled)
         for widget in [
             self.comment,
         ]:
             widget.setEnabled(enabled)
-        self.case_id.setEnabled(enabled and not is_campus_road)
+        self.case_id.setEnabled(enabled and not is_campus_road and not is_highway)
+        for widget in [
+            self.parking_subject_scene,
+            self.parking_space_category,
+            self.recognition_result,
+            self.park_in_result,
+            self.park_out_result,
+            self.obstacle_result,
+            self.pose_result,
+            self.jerk_result,
+            self.parking_time_sec,
+            self.maneuver_count,
+        ]:
+            widget.setEnabled(parking_enabled)
         self.save_btn.setEnabled(enabled)

@@ -253,7 +253,6 @@ class MainWindow(QMainWindow):
 
         self.service.base_dir = Path(self.pending_output_path)
         run_form = dict(self.pending_form)
-        run_form["test_function"] = self.calibration_page.test_function_value()
         paths = self.service.create_run(run_form)
         self.recording_page.issue_editor.set_test_function(run_form["test_function"])
         self.calibration_page.append_log(f"已创建 run 目录：{paths.root}")

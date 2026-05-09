@@ -43,14 +43,6 @@ class CalibrationPage(QWidget):
         form_layout = QFormLayout()
         self.rtk_serial_port = QComboBox()
         self.rtk_baudrate = QLineEdit("230400")
-        self.test_function = QComboBox()
-        self.test_function.addItems([
-            "行车-外部路测试",
-            "行车-园区测试",
-            "行车-高速测试",
-            "泊车测试",
-            "主动安全测试",
-        ])
         self.imu_address = QLineEdit("")
         self.scan_imu_btn = QPushButton("扫描蓝牙 IMU")
         imu_address_row = QHBoxLayout()
@@ -81,7 +73,6 @@ class CalibrationPage(QWidget):
         sample_widget = QWidget()
         sample_widget.setLayout(sample_row)
         for label, field in [
-            ("测试功能", self.test_function),
             ("RTK 串口", self.rtk_serial_port),
             ("RTK 波特率", self.rtk_baudrate),
             ("IMU 蓝牙地址", imu_address_widget),
@@ -227,9 +218,6 @@ class CalibrationPage(QWidget):
         if text and text not in {"?????", "No serial ports", "未发现串口"}:
             return text
         return "COM3"
-
-    def test_function_value(self) -> str:
-        return self.test_function.currentText().strip() or "行车-外部路测试"
 
     def rtk_serial_baudrate_value(self) -> int:
         try:

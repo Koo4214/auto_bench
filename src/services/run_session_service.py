@@ -8,6 +8,7 @@ from typing import Dict, Optional, Sequence
 
 from src.domain.enums import RunState
 from src.domain.models import RunMeta, RunPaths, RunStatus
+from src.domain.test_functions import DEFAULT_TEST_FUNCTION, normalize_test_function
 from src.devices.camera_preview import CameraPreviewManager
 from src.devices.historical_replay import HistoricalImuReplayDriver, HistoricalRtkReplayDriver
 from src.devices.imu_ble_driver import ImuBleDriver
@@ -109,7 +110,7 @@ class RunSessionService:
             route=form_data["route"],
             weather=form_data["weather"],
             day_night=form_data["day_night"],
-            test_function=form_data.get("test_function", "行车-外部路测试"),
+            test_function=normalize_test_function(form_data.get("test_function", DEFAULT_TEST_FUNCTION)),
         )
         self.paths = build_run_paths(
             self.base_dir,
@@ -212,6 +213,18 @@ class RunSessionService:
         speed_kph: str = "",
         takeover_result: str = "",
         road_test_result: str = "",
+        test_result: str = "",
+        severity_level: str = "",
+        parking_subject_scene: str = "",
+        parking_space_category: str = "",
+        recognition_result: str = "",
+        park_in_result: str = "",
+        park_out_result: str = "",
+        obstacle_result: str = "",
+        pose_result: str = "",
+        jerk_result: str = "",
+        parking_time_sec: str = "",
+        maneuver_count: str = "",
     ):
         if not self.status or not self.issue_service:
             raise RuntimeError("run not started")
@@ -241,6 +254,18 @@ class RunSessionService:
             speed_kph=speed_kph,
             takeover_result=takeover_result,
             road_test_result=road_test_result,
+            test_result=test_result,
+            severity_level=severity_level,
+            parking_subject_scene=parking_subject_scene,
+            parking_space_category=parking_space_category,
+            recognition_result=recognition_result,
+            park_in_result=park_in_result,
+            park_out_result=park_out_result,
+            obstacle_result=obstacle_result,
+            pose_result=pose_result,
+            jerk_result=jerk_result,
+            parking_time_sec=parking_time_sec,
+            maneuver_count=maneuver_count,
         )
         self.status = replace(self.status, issue_count=len(self.issue_service.issues))
         self.repository.save_status(self.paths.status_file, self.status)

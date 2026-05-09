@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from src.domain.test_functions import DEFAULT_TEST_FUNCTION, normalize_test_function
 from src.storage.json_io import read_json, write_json_atomic
 
 
@@ -33,7 +34,7 @@ class PlaybackService:
             run_id = status.get('run_id') or meta.get('run_id') or run_root.name
             vehicle = meta.get('vehicle_model', '-')
             vehicle_id = meta.get('vehicle_id', '-')
-            test_function = meta.get('test_function', '行车-外部路测试')
+            test_function = normalize_test_function(meta.get('test_function', DEFAULT_TEST_FUNCTION))
             test_date = meta.get('test_date', run_root.parent.parent.name if len(run_root.parts) >= 3 else '-')
             state = status.get('state', 'unknown')
             issue_count = status.get('issue_count', 0)

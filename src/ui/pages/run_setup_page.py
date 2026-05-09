@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict
 
 from PyQt5.QtWidgets import (
+    QComboBox,
     QFileDialog,
     QFormLayout,
     QHBoxLayout,
@@ -19,6 +20,7 @@ from PyQt5.QtWidgets import (
 )
 
 from src.app.runtime_tools import get_app_root, resolve_ffmpeg_path
+from src.domain.test_functions import TEST_FUNCTION_OPTIONS, normalize_test_function
 from src.ui.widgets.data_management_dialog import DataManagementDialog
 
 
@@ -47,6 +49,8 @@ class RunSetupPage(QWidget):
         ffmpeg_container = QWidget()
         ffmpeg_container.setLayout(ffmpeg_row)
 
+        self.test_function = QComboBox()
+        self.test_function.addItems(TEST_FUNCTION_OPTIONS)
         self.test_date = QLineEdit(datetime.now().strftime("%Y-%m-%d"))
         self.vehicle_model = QLineEdit("ProbeVehicle")
         self.vehicle_id = QLineEdit("TEST001")
@@ -57,6 +61,7 @@ class RunSetupPage(QWidget):
         self.weather = QLineEdit("Sunny")
         self.day_night = QLineEdit("Day")
         for label, field in [
+            ("测试功能", self.test_function),
             ("输出路径", output_container),
             ("FFmpeg 路径", ffmpeg_container),
             ("测试日期", self.test_date),
@@ -135,6 +140,7 @@ class RunSetupPage(QWidget):
                 config = json.load(f)
             self.output_path.setText(config.get("output_path", self.output_path.text()))
             self.ffmpeg_path.setText(config.get("ffmpeg_path", ""))
+            self.set_test_function(config.get("test_function", ""))
             self.vehicle_model.setText(config.get("vehicle_model", self.vehicle_model.text()))
             self.vehicle_id.setText(config.get("vehicle_id", self.vehicle_id.text()))
             self.version.setText(config.get("version", self.version.text()))
@@ -147,6 +153,7 @@ class RunSetupPage(QWidget):
         return {
             "output_path": self.output_path.text().strip(),
             "ffmpeg_path": self.ffmpeg_path.text().strip(),
+            "test_function": self.test_function_value(),
             "vehicle_model": self.vehicle_model.text().strip(),
             "vehicle_id": self.vehicle_id.text().strip(),
             "version": self.version.text().strip(),
@@ -179,8 +186,18 @@ class RunSetupPage(QWidget):
     def ffmpeg_path_value(self) -> str:
         return self.ffmpeg_path.text().strip()
 
+    def set_test_function(self, value: object) -> None:
+        test_function = normalize_test_function(value)
+        index = self.test_function.findText(test_function)
+        if index >= 0:
+            self.test_function.setCurrentIndex(index)
+
+    def test_function_value(self) -> str:
+        return normalize_test_function(self.test_function.currentText())
+
     def collect_form(self) -> Dict[str, str]:
         return {
+            "test_function": self.test_function_value(),
             "test_date": self.test_date.text().strip(),
             "vehicle_model": self.vehicle_model.text().strip(),
             "vehicle_id": self.vehicle_id.text().strip(),
