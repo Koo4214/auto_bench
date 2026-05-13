@@ -5,6 +5,7 @@ venv/
 data/
 tmp/
 dist/
+release/
 .qoder/
 
 ffmpeg.exe

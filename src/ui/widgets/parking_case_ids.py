@@ -8,6 +8,8 @@ from typing import Dict, Iterable, List, Sequence
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
+from src.app.runtime_tools import get_app_root
+
 
 PARKING_SUBJECT_SCENES: Sequence[str] = (
     "科目一",
@@ -98,7 +100,7 @@ def load_parking_case_id_catalog() -> ParkingCaseIdCatalog:
 def _find_case_id_files() -> List[Path]:
     roots: List[Path] = []
     cwd = Path.cwd()
-    for root in [cwd, *cwd.parents, Path(__file__).resolve().parents[3]]:
+    for root in [get_app_root(), cwd, *cwd.parents, Path(__file__).resolve().parents[3]]:
         if root not in roots:
             roots.append(root)
 

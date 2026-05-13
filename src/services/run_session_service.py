@@ -21,6 +21,9 @@ from src.storage.file_layout import build_run_paths, ensure_run_directories
 from src.storage.repositories import RunRepository
 
 
+G_TO_MPS2 = 9.80665
+
+
 class RunSessionService:
     def __init__(self, base_dir: Path) -> None:
         self.base_dir = base_dir
@@ -541,8 +544,12 @@ class RunSessionService:
         longitudinal_acc = None
         lateral_acc = None
         if rtk_sample is not None:
-            longitudinal_acc = rtk_sample.get('acc_x')
-            lateral_acc = rtk_sample.get('acc_y')
+            raw_longitudinal_acc = rtk_sample.get('acc_y')
+            raw_lateral_acc = rtk_sample.get('acc_x')
+            if raw_longitudinal_acc is not None:
+                longitudinal_acc = float(raw_longitudinal_acc) * G_TO_MPS2
+            if raw_lateral_acc is not None:
+                lateral_acc = float(raw_lateral_acc) * G_TO_MPS2
             timestamp = rtk_sample.get('local_timestamp')
             if timestamp is not None:
                 timestamp = float(timestamp)
@@ -554,13 +561,13 @@ class RunSessionService:
                 ):
                     dt = timestamp - self._last_chart_rtk_timestamp
                     if dt > 1e-6:
-                        self._last_chart_jerk = (float(longitudinal_acc) - self._last_chart_longitudinal_acc) / dt
+                        self._last_chart_jerk = (longitudinal_acc - self._last_chart_longitudinal_acc) / dt
                 self._last_chart_rtk_timestamp = timestamp
                 if longitudinal_acc is not None:
-                    self._last_chart_longitudinal_acc = float(longitudinal_acc)
+                    self._last_chart_longitudinal_acc = longitudinal_acc
         return {
-            'longitudinal_acc': float(longitudinal_acc) if longitudinal_acc is not None else None,
-            'lateral_acc': float(lateral_acc) if lateral_acc is not None else None,
+            'longitudinal_acc': longitudinal_acc,
+            'lateral_acc': lateral_acc,
             'jerk': self._last_chart_jerk,
         }
 

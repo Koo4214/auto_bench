@@ -7,6 +7,8 @@ from typing import Dict, Iterable, List, Sequence
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
+from src.app.runtime_tools import get_app_root
+
 
 ACTIVE_SAFETY_FUNCTIONS: Sequence[str] = (
     "AEB",
@@ -84,7 +86,7 @@ def load_active_safety_case_id_catalog() -> ActiveSafetyCaseIdCatalog:
 def _find_case_id_files() -> List[Path]:
     roots: List[Path] = []
     cwd = Path.cwd()
-    for root in [cwd, *cwd.parents]:
+    for root in [get_app_root(), cwd, *cwd.parents]:
         if root not in roots:
             roots.append(root)
 
