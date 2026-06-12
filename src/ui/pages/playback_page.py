@@ -25,7 +25,12 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from src.domain.test_functions import DEFAULT_TEST_FUNCTION, normalize_test_function
+from src.domain.test_functions import (
+    ACTIVE_SAFETY_TEST_FUNCTION,
+    DEFAULT_TEST_FUNCTION,
+    URBAN_TEST_FUNCTION,
+    normalize_test_function,
+)
 from src.services.playback_service import PlaybackService
 from src.ui.i18n import zh
 from src.ui.widgets.active_safety_case_ids import ACTIVE_SAFETY_FUNCTIONS
@@ -40,9 +45,19 @@ from src.ui.widgets.issue_editor import (
     CAMPUS_ROAD_TYPES,
     CAMPUS_SCENE_TYPES,
     CAMPUS_TARGET_TYPES,
+    FUNCTION_CHECK_MARKING_SCHEMA,
+    FUNCTION_CHECK_TEST_FUNCTION,
     PARKING_MARKING_SCHEMA,
     PARKING_TEST_FUNCTION,
     PROBLEM_OPTIONS,
+    URBAN_CITY_EGO_ACTIONS,
+    URBAN_CITY_EGO_CONDITIONS,
+    URBAN_CITY_MARKING_SCHEMA,
+    URBAN_CITY_PROBLEM_OPTIONS,
+    URBAN_CITY_SCENE_TYPES,
+    URBAN_CITY_TARGET_BEHAVIOR_DISABLED_TYPES,
+    URBAN_CITY_TARGET_BEHAVIORS,
+    URBAN_CITY_TARGET_TYPES,
 )
 from src.ui.widgets.highway_kpi_tags import (
     HIGHWAY_MARKING_SCHEMA,
@@ -106,60 +121,205 @@ LEGACY_EGO_ACTIONS = [
 PARKING_SPACE_CATEGORIES = ["地面车位", "地库车位"]
 PARKING_SUCCESS_RESULTS = ["成功", "失败"]
 PARKING_QUALIFIED_RESULTS = ["合格", "不合格"]
+ACTIVE_SAFETY_MARKING_SCHEMA = "active_safety"
 
 
 class PlaybackPage(QWidget):
-    TABLE_COLUMNS = [
+    COMMON_TABLE_PREFIX = [
         ("序号", "seq_no", 48),
         ("时间", "issue_time_text", 128),
         ("经纬度", "latlon", 102),
-        ("Case ID", "case_id", 96),
-        ("功能", "active_safety_function", 72),
-        ("模式", "active_safety_mode", 64),
-        ("速度(kph)", "speed_kph", 82),
-        ("结果", "test_result", 92),
-        ("科目场景", "parking_subject_scene", 88),
-        ("车位分类", "parking_space_category", 88),
-        ("识别", "recognition_result", 64),
-        ("泊入", "park_in_result", 64),
-        ("泊出", "park_out_result", 64),
-        ("避障", "obstacle_result", 64),
-        ("位姿", "pose_result", 64),
-        ("顿挫", "jerk_result", 64),
-        ("泊车时间(s)", "parking_time_sec", 92),
-        ("揉库次数", "maneuver_count", 76),
-        ("道路类型", "road_type", 112),
-        ("场景类型", "scene_type", 112),
-        ("问题类型", "problem_type", 128),
-        ("严重程度", "severity_level", 92),
-        ("目标类型", "target_type", 112),
-        ("本车操作", "ego_action", 124),
+    ]
+    COMMON_TABLE_SUFFIX = [
         ("备注", "comment", 160),
         ("triage", "triage", 76),
         ("triage_time", "triage_time", 138),
     ]
-    FILTER_FIELDS = [
-        ("道路类型", "road_type"),
-        ("场景类型", "scene_type"),
-        ("问题大类", "problem_tab"),
-        ("问题类型", "problem_type"),
-        ("严重程度", "severity_level"),
-        ("目标类型", "target_type"),
-        ("本车操作", "ego_action"),
-        ("主动安全功能", "active_safety_function"),
-        ("主动安全模式", "active_safety_mode"),
-        ("测试结果", "test_result"),
-        ("主动安全结果", "active_safety_result"),
-        ("科目场景", "parking_subject_scene"),
-        ("车位分类", "parking_space_category"),
-        ("识别结果", "recognition_result"),
-        ("泊入结果", "park_in_result"),
-        ("泊出结果", "park_out_result"),
-        ("避障结果", "obstacle_result"),
-        ("位姿结果", "pose_result"),
-        ("顿挫", "jerk_result"),
-        ("triage", "triage"),
-    ]
+    TABLE_COLUMNS_BY_SCHEMA = {
+        URBAN_CITY_MARKING_SCHEMA: [
+            ("场景类型", "scene_type", 112),
+            ("本车工况", "ego_condition", 112),
+            ("问题大类", "problem_tab", 112),
+            ("问题类型", "problem_type", 128),
+            ("目标类型", "target_type", 112),
+            ("目标行为", "target_behavior", 112),
+            ("本车操作", "ego_action", 124),
+        ],
+        HIGHWAY_MARKING_SCHEMA: [
+            ("测试场景", "scene_type", 112),
+            ("问题描述", "problem_type", 128),
+            ("本车操作", "ego_action", 124),
+            ("严重程度", "severity_level", 92),
+        ],
+        FUNCTION_CHECK_MARKING_SCHEMA: [
+            ("Case ID", "case_id", 120),
+            ("测试结果", "test_result", 92),
+        ],
+        CAMPUS_ROAD_MARKING_SCHEMA: [
+            ("道路类型", "road_type", 112),
+            ("场景类型", "scene_type", 112),
+            ("问题大类", "problem_tab", 112),
+            ("问题类型", "problem_type", 128),
+            ("目标类型", "target_type", 112),
+            ("本车操作", "ego_action", 124),
+        ],
+        CAMPUS_FIELD_MARKING_SCHEMA: [
+            ("Case ID", "case_id", 120),
+            ("测试结果", "test_result", 92),
+        ],
+        PARKING_MARKING_SCHEMA: [
+            ("Case ID", "case_id", 120),
+            ("科目场景", "parking_subject_scene", 88),
+            ("车位分类", "parking_space_category", 88),
+            ("识别", "recognition_result", 64),
+            ("泊入", "park_in_result", 64),
+            ("泊出", "park_out_result", 64),
+            ("避障", "obstacle_result", 64),
+            ("位姿", "pose_result", 64),
+            ("顿挫", "jerk_result", 64),
+            ("泊车时间(s)", "parking_time_sec", 92),
+            ("揉库次数", "maneuver_count", 76),
+        ],
+        ACTIVE_SAFETY_MARKING_SCHEMA: [
+            ("主动安全功能", "active_safety_function", 96),
+            ("主动安全模式", "active_safety_mode", 88),
+            ("Case ID", "case_id", 120),
+            ("速度(kph)", "speed_kph", 82),
+            ("测试结果", "takeover_result", 92),
+            ("路试结果", "road_test_result", 92),
+        ],
+        "legacy": [
+            ("道路类型", "road_type", 112),
+            ("场景类型", "scene_type", 112),
+            ("问题大类", "problem_tab", 112),
+            ("问题类型", "problem_type", 128),
+            ("目标类型", "target_type", 112),
+            ("本车操作", "ego_action", 124),
+        ],
+    }
+    FILTER_FIELDS_BY_SCHEMA = {
+        URBAN_CITY_MARKING_SCHEMA: [
+            ("场景类型", "scene_type"),
+            ("本车工况", "ego_condition"),
+            ("问题大类", "problem_tab"),
+            ("问题类型", "problem_type"),
+            ("目标类型", "target_type"),
+            ("目标行为", "target_behavior"),
+            ("本车操作", "ego_action"),
+        ],
+        HIGHWAY_MARKING_SCHEMA: [
+            ("测试场景", "scene_type"),
+            ("问题描述", "problem_type"),
+            ("本车操作", "ego_action"),
+            ("严重程度", "severity_level"),
+        ],
+        FUNCTION_CHECK_MARKING_SCHEMA: [
+            ("Case ID", "case_id"),
+            ("测试结果", "test_result"),
+        ],
+        CAMPUS_ROAD_MARKING_SCHEMA: [
+            ("道路类型", "road_type"),
+            ("场景类型", "scene_type"),
+            ("问题大类", "problem_tab"),
+            ("问题类型", "problem_type"),
+            ("目标类型", "target_type"),
+            ("本车操作", "ego_action"),
+        ],
+        CAMPUS_FIELD_MARKING_SCHEMA: [
+            ("Case ID", "case_id"),
+            ("测试结果", "test_result"),
+        ],
+        PARKING_MARKING_SCHEMA: [
+            ("Case ID", "case_id"),
+            ("科目场景", "parking_subject_scene"),
+            ("车位分类", "parking_space_category"),
+            ("识别结果", "recognition_result"),
+            ("泊入结果", "park_in_result"),
+            ("泊出结果", "park_out_result"),
+            ("避障结果", "obstacle_result"),
+            ("位姿结果", "pose_result"),
+            ("顿挫", "jerk_result"),
+        ],
+        ACTIVE_SAFETY_MARKING_SCHEMA: [
+            ("主动安全功能", "active_safety_function"),
+            ("主动安全模式", "active_safety_mode"),
+            ("测试结果", "takeover_result"),
+            ("路试结果", "road_test_result"),
+        ],
+        "legacy": [
+            ("道路类型", "road_type"),
+            ("场景类型", "scene_type"),
+            ("问题大类", "problem_tab"),
+            ("问题类型", "problem_type"),
+            ("目标类型", "target_type"),
+            ("本车操作", "ego_action"),
+        ],
+    }
+    EDIT_FIELDS_BY_SCHEMA = {
+        URBAN_CITY_MARKING_SCHEMA: [
+            "scene_type",
+            "ego_condition",
+            "problem_tab",
+            "problem_type",
+            "target_type",
+            "target_behavior",
+            "ego_action",
+            "comment",
+        ],
+        HIGHWAY_MARKING_SCHEMA: [
+            "scene_type",
+            "problem_type",
+            "ego_action",
+            "severity_level",
+            "comment",
+        ],
+        FUNCTION_CHECK_MARKING_SCHEMA: ["case_id", "takeover_result", "comment"],
+        CAMPUS_ROAD_MARKING_SCHEMA: [
+            "road_type",
+            "scene_type",
+            "problem_tab",
+            "problem_type",
+            "target_type",
+            "ego_action",
+            "comment",
+        ],
+        CAMPUS_FIELD_MARKING_SCHEMA: ["case_id", "takeover_result", "comment"],
+        PARKING_MARKING_SCHEMA: [
+            "case_id",
+            "parking_subject_scene",
+            "parking_space_category",
+            "recognition_result",
+            "park_in_result",
+            "park_out_result",
+            "obstacle_result",
+            "pose_result",
+            "jerk_result",
+            "parking_time_sec",
+            "maneuver_count",
+            "comment",
+        ],
+        ACTIVE_SAFETY_MARKING_SCHEMA: [
+            "active_safety_function",
+            "active_safety_mode",
+            "case_id",
+            "speed_kph",
+            "takeover_result",
+            "road_test_result",
+            "comment",
+        ],
+        "legacy": [
+            "road_type",
+            "scene_type",
+            "problem_tab",
+            "problem_type",
+            "target_type",
+            "ego_action",
+            "comment",
+        ],
+    }
+    FILTER_TRAILING_FIELDS = [("triage", "triage")]
+    TABLE_COLUMNS = COMMON_TABLE_PREFIX + TABLE_COLUMNS_BY_SCHEMA["legacy"] + COMMON_TABLE_SUFFIX
+    FILTER_FIELDS = FILTER_FIELDS_BY_SCHEMA["legacy"] + FILTER_TRAILING_FIELDS
 
     def __init__(self, playback_service: PlaybackService) -> None:
         super().__init__()
@@ -170,6 +330,7 @@ class PlaybackPage(QWidget):
         self.visible_issues: List[Dict[str, object]] = []
         self.current_clip_path: Optional[Path] = None
         self.edit_mode = False
+        self.current_table_columns = self._table_columns_for_schema(self._issue_schema(None))
 
         root = QHBoxLayout(self)
         root.setContentsMargins(8, 8, 8, 8)
@@ -200,10 +361,9 @@ class PlaybackPage(QWidget):
 
         filter_row = QHBoxLayout()
         self.filter_field_box = QComboBox()
-        for label, key in self.FILTER_FIELDS:
-            self.filter_field_box.addItem(label, key)
         self.filter_value_box = QComboBox()
         self.filter_value_box.addItem('全部', '')
+        self._set_filter_fields_for_schema(self._issue_schema(None))
         self.clear_filter_btn = QPushButton('清空')
         filter_row.addWidget(QLabel('筛选'))
         filter_row.addWidget(self.filter_field_box)
@@ -214,29 +374,33 @@ class PlaybackPage(QWidget):
         self.issue_count_label = QLabel('可见问题数：0')
         left_layout.addWidget(self.issue_count_label)
 
-        self.issue_table = QTableWidget(0, len(self.TABLE_COLUMNS))
+        self.issue_table = QTableWidget(0, len(self.current_table_columns))
         self.issue_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.issue_table.setSelectionMode(QTableWidget.SingleSelection)
         self.issue_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.issue_table.setAlternatingRowColors(True)
         self.issue_table.verticalHeader().setVisible(False)
-        self.issue_table.setHorizontalHeaderLabels([title for title, _key, _width in self.TABLE_COLUMNS])
+        self.issue_table.setHorizontalHeaderLabels([title for title, _key, _width in self.current_table_columns])
         self.issue_table.setSortingEnabled(True)
         header = self.issue_table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.Fixed)
         header.setStretchLastSection(False)
         header.setSectionsMovable(False)
-        for index, (_title, _key, width) in enumerate(self.TABLE_COLUMNS):
+        for index, (_title, _key, width) in enumerate(self.current_table_columns):
             self.issue_table.setColumnWidth(index, width)
         left_layout.addWidget(self.issue_table, 2)
 
         edit_box = QWidget()
         edit_layout = QFormLayout(edit_box)
         edit_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+        self.edit_layout = edit_layout
+        self.edit_rows: Dict[str, tuple[QLabel, QWidget]] = {}
         self.road_type = QComboBox()
         self._fill_combo(self.road_type, LEGACY_ROAD_TYPES)
         self.scene_type = QComboBox()
         self._fill_combo(self.scene_type, LEGACY_SCENE_TYPES)
+        self.ego_condition = QComboBox()
+        self._fill_combo(self.ego_condition, [], include_empty=True)
         self.problem_tab = QComboBox()
         self._fill_combo(self.problem_tab, list(PROBLEM_OPTIONS.keys()))
         self.problem_type = QComboBox()
@@ -244,6 +408,9 @@ class PlaybackPage(QWidget):
         self._refresh_problem_types(self.problem_tab.currentIndex())
         self.target_type = QComboBox()
         self._fill_combo(self.target_type, LEGACY_TARGET_TYPES)
+        self.target_type.currentIndexChanged.connect(self._refresh_target_behavior_enabled)
+        self.target_behavior = QComboBox()
+        self._fill_combo(self.target_behavior, [], include_empty=True)
         self.ego_action = QComboBox()
         self._fill_combo(self.ego_action, LEGACY_EGO_ACTIONS)
         self.severity_level = QComboBox()
@@ -282,9 +449,11 @@ class PlaybackPage(QWidget):
         for combo in [
             self.road_type,
             self.scene_type,
+            self.ego_condition,
             self.problem_tab,
             self.problem_type,
             self.target_type,
+            self.target_behavior,
             self.ego_action,
             self.severity_level,
             self.active_safety_function,
@@ -303,30 +472,32 @@ class PlaybackPage(QWidget):
             combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
             combo.setMinimumContentsLength(16)
             combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        edit_layout.addRow("道路类型", self.road_type)
-        edit_layout.addRow("场景类型", self.scene_type)
-        edit_layout.addRow("问题大类", self.problem_tab)
-        edit_layout.addRow("问题类型", self.problem_type)
-        edit_layout.addRow("目标类型", self.target_type)
-        edit_layout.addRow("本车操作", self.ego_action)
-        edit_layout.addRow("严重程度", self.severity_level)
-        edit_layout.addRow("Case ID", self.case_id)
-        edit_layout.addRow("主动安全功能", self.active_safety_function)
-        edit_layout.addRow("主动安全模式", self.active_safety_mode)
-        edit_layout.addRow("速度(kph)", self.speed_kph)
-        edit_layout.addRow("测试结果", self.takeover_result)
-        edit_layout.addRow("路试结果", self.road_test_result)
-        edit_layout.addRow("泊车科目场景", self.parking_subject_scene)
-        edit_layout.addRow("泊车车位分类", self.parking_space_category)
-        edit_layout.addRow("识别结果", self.recognition_result)
-        edit_layout.addRow("泊入结果", self.park_in_result)
-        edit_layout.addRow("泊出结果", self.park_out_result)
-        edit_layout.addRow("避障结果", self.obstacle_result)
-        edit_layout.addRow("位姿结果", self.pose_result)
-        edit_layout.addRow("顿挫", self.jerk_result)
-        edit_layout.addRow("泊车时间(s)", self.parking_time_sec)
-        edit_layout.addRow("揉库次数", self.maneuver_count)
-        edit_layout.addRow("备注", self.comment)
+        self._add_edit_row(edit_layout, "road_type", "道路类型", self.road_type)
+        self._add_edit_row(edit_layout, "scene_type", "场景类型", self.scene_type)
+        self._add_edit_row(edit_layout, "ego_condition", "本车工况", self.ego_condition)
+        self._add_edit_row(edit_layout, "problem_tab", "问题大类", self.problem_tab)
+        self._add_edit_row(edit_layout, "problem_type", "问题类型", self.problem_type)
+        self._add_edit_row(edit_layout, "target_type", "目标类型", self.target_type)
+        self._add_edit_row(edit_layout, "target_behavior", "目标行为", self.target_behavior)
+        self._add_edit_row(edit_layout, "ego_action", "本车操作", self.ego_action)
+        self._add_edit_row(edit_layout, "severity_level", "严重程度", self.severity_level)
+        self._add_edit_row(edit_layout, "case_id", "Case ID", self.case_id)
+        self._add_edit_row(edit_layout, "active_safety_function", "主动安全功能", self.active_safety_function)
+        self._add_edit_row(edit_layout, "active_safety_mode", "主动安全模式", self.active_safety_mode)
+        self._add_edit_row(edit_layout, "speed_kph", "速度(kph)", self.speed_kph)
+        self._add_edit_row(edit_layout, "takeover_result", "测试结果", self.takeover_result)
+        self._add_edit_row(edit_layout, "road_test_result", "路试结果", self.road_test_result)
+        self._add_edit_row(edit_layout, "parking_subject_scene", "泊车科目场景", self.parking_subject_scene)
+        self._add_edit_row(edit_layout, "parking_space_category", "泊车车位分类", self.parking_space_category)
+        self._add_edit_row(edit_layout, "recognition_result", "识别结果", self.recognition_result)
+        self._add_edit_row(edit_layout, "park_in_result", "泊入结果", self.park_in_result)
+        self._add_edit_row(edit_layout, "park_out_result", "泊出结果", self.park_out_result)
+        self._add_edit_row(edit_layout, "obstacle_result", "避障结果", self.obstacle_result)
+        self._add_edit_row(edit_layout, "pose_result", "位姿结果", self.pose_result)
+        self._add_edit_row(edit_layout, "jerk_result", "顿挫", self.jerk_result)
+        self._add_edit_row(edit_layout, "parking_time_sec", "泊车时间(s)", self.parking_time_sec)
+        self._add_edit_row(edit_layout, "maneuver_count", "揉库次数", self.maneuver_count)
+        self._add_edit_row(edit_layout, "comment", "备注", self.comment)
         left_layout.addWidget(edit_box)
 
         button_row = QHBoxLayout()
@@ -396,6 +567,7 @@ class PlaybackPage(QWidget):
 
         self.on_step_changed(0)
         self._set_edit_enabled(False)
+        self._apply_editor_schema(self._issue_schema(None))
         self._apply_panel_widths()
 
     def _fill_combo(self, combo: QComboBox, values: List[str], include_empty: bool = False) -> None:
@@ -415,6 +587,56 @@ class PlaybackPage(QWidget):
         if index >= 0:
             combo.setCurrentIndex(index)
 
+    def _add_edit_row(self, layout: QFormLayout, field_key: str, label: str, widget: QWidget) -> None:
+        label_widget = QLabel(label)
+        layout.addRow(label_widget, widget)
+        self.edit_rows[field_key] = (label_widget, widget)
+
+    def _table_columns_for_schema(self, schema: str) -> List[tuple[str, str, int]]:
+        schema_columns = self.TABLE_COLUMNS_BY_SCHEMA.get(schema, self.TABLE_COLUMNS_BY_SCHEMA["legacy"])
+        return self.COMMON_TABLE_PREFIX + schema_columns + self.COMMON_TABLE_SUFFIX
+
+    def _filter_fields_for_schema(self, schema: str) -> List[tuple[str, str]]:
+        schema_fields = self.FILTER_FIELDS_BY_SCHEMA.get(schema, self.FILTER_FIELDS_BY_SCHEMA["legacy"])
+        return schema_fields + self.FILTER_TRAILING_FIELDS
+
+    def _edit_fields_for_schema(self, schema: str) -> List[str]:
+        return self.EDIT_FIELDS_BY_SCHEMA.get(schema, self.EDIT_FIELDS_BY_SCHEMA["legacy"])
+
+    def _set_filter_fields_for_schema(self, schema: str) -> None:
+        current_value = str(self.filter_field_box.currentData() or "")
+        self.filter_field_box.blockSignals(True)
+        self.filter_field_box.clear()
+        for label, key in self._filter_fields_for_schema(schema):
+            self.filter_field_box.addItem(label, key)
+        index = self.filter_field_box.findData(current_value)
+        self.filter_field_box.setCurrentIndex(index if index >= 0 else 0)
+        self.filter_field_box.blockSignals(False)
+
+    def _apply_table_schema(self, schema: str) -> None:
+        self.current_table_columns = self._table_columns_for_schema(schema)
+        self.issue_table.setSortingEnabled(False)
+        self.issue_table.clear()
+        self.issue_table.setRowCount(0)
+        self.issue_table.setColumnCount(len(self.current_table_columns))
+        self.issue_table.setHorizontalHeaderLabels([title for title, _key, _width in self.current_table_columns])
+        for index, (_title, _key, width) in enumerate(self.current_table_columns):
+            self.issue_table.setColumnWidth(index, width)
+        self.issue_table.setSortingEnabled(True)
+
+    def _apply_editor_schema(self, schema: str) -> None:
+        while self.edit_layout.rowCount():
+            self.edit_layout.takeRow(0)
+        visible_fields = self._edit_fields_for_schema(schema)
+        visible_set = set(visible_fields)
+        for field_key, (label_widget, field_widget) in self.edit_rows.items():
+            visible = field_key in visible_set
+            label_widget.setVisible(visible)
+            field_widget.setVisible(visible)
+        for field_key in visible_fields:
+            label_widget, field_widget = self.edit_rows[field_key]
+            self.edit_layout.addRow(label_widget, field_widget)
+
     def _issue_value(self, issue: Dict[str, object], field_key: str) -> object:
         if field_key == "test_result":
             return issue.get("test_result") or issue.get("takeover_result") or issue.get("road_test_result") or ""
@@ -429,32 +651,48 @@ class PlaybackPage(QWidget):
         return issue.get(field_key, "")
 
     def _issue_schema(self, issue: Optional[Dict[str, object]]) -> str:
-        if issue and issue.get('marking_schema') == 'active_safety':
-            return 'active_safety'
+        if issue and issue.get('marking_schema') == ACTIVE_SAFETY_MARKING_SCHEMA:
+            return ACTIVE_SAFETY_MARKING_SCHEMA
+        if issue and issue.get('marking_schema') == URBAN_CITY_MARKING_SCHEMA:
+            return URBAN_CITY_MARKING_SCHEMA
         if issue and issue.get('marking_schema') == CAMPUS_ROAD_MARKING_SCHEMA:
             return CAMPUS_ROAD_MARKING_SCHEMA
         if issue and issue.get('marking_schema') == CAMPUS_FIELD_MARKING_SCHEMA:
             return CAMPUS_FIELD_MARKING_SCHEMA
+        if issue and issue.get('marking_schema') == FUNCTION_CHECK_MARKING_SCHEMA:
+            return FUNCTION_CHECK_MARKING_SCHEMA
         if issue and issue.get('marking_schema') == HIGHWAY_MARKING_SCHEMA:
             return HIGHWAY_MARKING_SCHEMA
         if issue and issue.get('marking_schema') == PARKING_MARKING_SCHEMA:
             return PARKING_MARKING_SCHEMA
         current_test_function = normalize_test_function(self.current_run.get('test_function')) if self.current_run else ''
+        if current_test_function == URBAN_TEST_FUNCTION:
+            return URBAN_CITY_MARKING_SCHEMA
         if current_test_function == CAMPUS_FIELD_TEST_FUNCTION:
             return CAMPUS_FIELD_MARKING_SCHEMA
         if current_test_function == CAMPUS_ROAD_TEST_FUNCTION:
             return CAMPUS_ROAD_MARKING_SCHEMA
+        if current_test_function == FUNCTION_CHECK_TEST_FUNCTION:
+            return FUNCTION_CHECK_MARKING_SCHEMA
         if current_test_function == HIGHWAY_TEST_FUNCTION:
             return HIGHWAY_MARKING_SCHEMA
         if current_test_function == PARKING_TEST_FUNCTION:
             return PARKING_MARKING_SCHEMA
+        if current_test_function == ACTIVE_SAFETY_TEST_FUNCTION:
+            return ACTIVE_SAFETY_MARKING_SCHEMA
         return 'legacy'
 
     def _is_campus_road_issue(self, issue: Optional[Dict[str, object]]) -> bool:
         return self._issue_schema(issue) == CAMPUS_ROAD_MARKING_SCHEMA
 
+    def _is_urban_city_issue(self, issue: Optional[Dict[str, object]]) -> bool:
+        return self._issue_schema(issue) == URBAN_CITY_MARKING_SCHEMA
+
     def _is_campus_field_issue(self, issue: Optional[Dict[str, object]]) -> bool:
         return self._issue_schema(issue) == CAMPUS_FIELD_MARKING_SCHEMA
+
+    def _is_function_check_issue(self, issue: Optional[Dict[str, object]]) -> bool:
+        return self._issue_schema(issue) == FUNCTION_CHECK_MARKING_SCHEMA
 
     def _is_highway_issue(self, issue: Optional[Dict[str, object]]) -> bool:
         return self._issue_schema(issue) == HIGHWAY_MARKING_SCHEMA
@@ -463,54 +701,87 @@ class PlaybackPage(QWidget):
         return self._issue_schema(issue) == PARKING_MARKING_SCHEMA
 
     def _standard_problem_options(self) -> Dict[str, List[str]]:
+        if self._is_urban_city_issue(self.current_issue):
+            return URBAN_CITY_PROBLEM_OPTIONS
         if self._is_campus_road_issue(self.current_issue):
             return CAMPUS_PROBLEM_OPTIONS
         if self._is_highway_issue(self.current_issue):
             return load_highway_kpi_tag_catalog().problem_options()
+        if self._is_function_check_issue(self.current_issue):
+            return {"Driving function check": [FUNCTION_CHECK_TEST_FUNCTION]}
         if self._is_parking_issue(self.current_issue):
             return {"Parking": list(PARKING_SUBJECT_SCENES)}
         return PROBLEM_OPTIONS
 
     def _apply_standard_combo_options(self, schema: str) -> None:
-        if schema == CAMPUS_ROAD_MARKING_SCHEMA:
+        if schema == URBAN_CITY_MARKING_SCHEMA:
+            road_types = [""]
+            scene_types = URBAN_CITY_SCENE_TYPES
+            ego_conditions = URBAN_CITY_EGO_CONDITIONS
+            problem_options = URBAN_CITY_PROBLEM_OPTIONS
+            target_types = URBAN_CITY_TARGET_TYPES
+            target_behaviors = URBAN_CITY_TARGET_BEHAVIORS
+            ego_actions = URBAN_CITY_EGO_ACTIONS
+            severity_levels: List[str] = []
+        elif schema == CAMPUS_ROAD_MARKING_SCHEMA:
             road_types = CAMPUS_ROAD_TYPES
             scene_types = CAMPUS_SCENE_TYPES
+            ego_conditions = []
             problem_options = CAMPUS_PROBLEM_OPTIONS
             target_types = CAMPUS_TARGET_TYPES
+            target_behaviors = []
             ego_actions = CAMPUS_EGO_ACTIONS
             severity_levels: List[str] = []
         elif schema == HIGHWAY_MARKING_SCHEMA:
             catalog = load_highway_kpi_tag_catalog()
             road_types = [""]
             scene_types = list(catalog.test_scenes)
+            ego_conditions = []
             problem_options = catalog.problem_options()
             target_types = [""]
+            target_behaviors = []
             ego_actions = list(catalog.ego_actions)
             severity_levels = list(catalog.severity_levels)
+        elif schema == FUNCTION_CHECK_MARKING_SCHEMA:
+            road_types = [""]
+            scene_types = [""]
+            ego_conditions = []
+            problem_options = {"Driving function check": [FUNCTION_CHECK_TEST_FUNCTION]}
+            target_types = [""]
+            target_behaviors = []
+            ego_actions = ["通过", "失败"]
+            severity_levels = []
         elif schema == PARKING_MARKING_SCHEMA:
             road_types = PARKING_SPACE_CATEGORIES
             scene_types = list(PARKING_SUBJECT_SCENES)
+            ego_conditions = []
             problem_options = {"Parking": list(PARKING_SUBJECT_SCENES)}
             target_types = [""]
+            target_behaviors = []
             ego_actions = PARKING_SUCCESS_RESULTS
             severity_levels = []
         else:
             road_types = LEGACY_ROAD_TYPES
             scene_types = LEGACY_SCENE_TYPES
+            ego_conditions = []
             problem_options = PROBLEM_OPTIONS
             target_types = LEGACY_TARGET_TYPES
+            target_behaviors = []
             ego_actions = LEGACY_EGO_ACTIONS
             severity_levels = []
 
         self.problem_tab.blockSignals(True)
         self._fill_combo(self.road_type, road_types)
         self._fill_combo(self.scene_type, scene_types)
+        self._fill_combo(self.ego_condition, ego_conditions, include_empty=True)
         self._fill_combo(self.problem_tab, list(problem_options.keys()))
         self._fill_combo(self.target_type, target_types)
+        self._fill_combo(self.target_behavior, target_behaviors, include_empty=True)
         self._fill_combo(self.ego_action, ego_actions)
         self._fill_combo(self.severity_level, severity_levels, include_empty=not severity_levels)
         self.problem_tab.blockSignals(False)
         self._refresh_problem_types(self.problem_tab.currentIndex())
+        self._refresh_target_behavior_enabled(self.target_type.currentIndex())
 
     def set_output_path(self, output_path: str) -> None:
         self.output_path.setText(output_path)
@@ -536,6 +807,10 @@ class PlaybackPage(QWidget):
         self.current_issue = None
         self.all_issues = []
         self.visible_issues = []
+        schema = self._issue_schema(None)
+        self._apply_table_schema(schema)
+        self._set_filter_fields_for_schema(schema)
+        self._apply_editor_schema(schema)
         runs = self.playback_service.list_runs()
         for run in runs:
             state_text = zh(run.get('state', ''))
@@ -557,6 +832,11 @@ class PlaybackPage(QWidget):
             return
         run = item.data(Qt.UserRole)
         self.current_run = run
+        self.current_issue = None
+        schema = self._issue_schema(None)
+        self._apply_table_schema(schema)
+        self._set_filter_fields_for_schema(schema)
+        self._apply_editor_schema(schema)
         run_root = Path(str(run['run_root']))
         self.all_issues = self.playback_service.load_issues(run_root)
         self._refresh_filter_values()
@@ -643,15 +923,20 @@ class PlaybackPage(QWidget):
                 'maneuver_count': issue.get('maneuver_count', ''),
                 'road_type': zh(issue.get('road_type', '')),
                 'scene_type': zh(issue.get('scene_type', '')),
+                'ego_condition': zh(issue.get('ego_condition', '')),
+                'problem_tab': zh(issue.get('problem_tab', '')),
                 'problem_type': zh(issue.get('problem_type', '')),
                 'severity_level': issue.get('severity_level', ''),
                 'target_type': zh(issue.get('target_type', '')),
+                'target_behavior': zh(issue.get('target_behavior', '')),
                 'ego_action': zh(issue.get('ego_action', '')),
+                'takeover_result': issue.get('takeover_result', ''),
+                'road_test_result': issue.get('road_test_result', ''),
                 'comment': issue.get('comment', ''),
                 'triage': zh(issue.get('triage', 'untriaged')),
                 'triage_time': issue.get('triage_time', '') or '',
             }
-            for col, (_title, key, _width) in enumerate(self.TABLE_COLUMNS):
+            for col, (_title, key, _width) in enumerate(self.current_table_columns):
                 item = QTableWidgetItem(str(values[key]))
                 item.setData(Qt.UserRole, str(issue.get('issue_id', '')))
                 if key == 'seq_no':
@@ -747,24 +1032,18 @@ class PlaybackPage(QWidget):
     def save_issue(self) -> None:
         if not self.current_run or not self.current_issue:
             return
+        schema = self._issue_schema(self.current_issue)
         updates = {
-            'road_type': self._combo_value(self.road_type),
-            'scene_type': self._combo_value(self.scene_type),
-            'problem_tab': self._combo_value(self.problem_tab),
-            'problem_type': self._combo_value(self.problem_type),
-            'target_type': self._combo_value(self.target_type),
-            'ego_action': self._combo_value(self.ego_action),
-            'severity_level': self._combo_value(self.severity_level),
-            'case_id': self.case_id.text().strip(),
+            'marking_schema': schema,
             'comment': self.comment.toPlainText().strip(),
         }
-        if self.current_issue.get('marking_schema') == 'active_safety':
+        if schema == ACTIVE_SAFETY_MARKING_SCHEMA:
             active_mode = self._combo_value(self.active_safety_mode)
             is_field_test = active_mode == '场测'
             takeover_result = self._combo_value(self.takeover_result) if is_field_test else ''
             road_test_result = self._combo_value(self.road_test_result) if not is_field_test else ''
+            result_text = takeover_result or road_test_result
             updates.update({
-                'marking_schema': 'active_safety',
                 'active_safety_function': self._combo_value(self.active_safety_function),
                 'active_safety_mode': active_mode,
                 'speed_kph': self.speed_kph.text().strip() if is_field_test else '',
@@ -773,54 +1052,42 @@ class PlaybackPage(QWidget):
                 'case_id': self.case_id.text().strip() if is_field_test else '',
                 'problem_tab': 'Active safety',
                 'problem_type': self._combo_value(self.active_safety_function),
-                'ego_action': takeover_result or road_test_result,
+                'ego_action': result_text,
             })
-        elif self._is_campus_field_issue(self.current_issue):
+        elif schema == CAMPUS_FIELD_MARKING_SCHEMA:
             test_result = self._combo_value(self.takeover_result)
             updates.update({
-                'marking_schema': CAMPUS_FIELD_MARKING_SCHEMA,
                 'case_id': self.case_id.text().strip(),
                 'test_result': test_result,
                 'problem_tab': 'Campus field',
                 'problem_type': CAMPUS_FIELD_TEST_FUNCTION,
                 'ego_action': test_result,
-                'road_type': '',
-                'scene_type': '',
-                'target_type': '',
-                'active_safety_function': '',
-                'active_safety_mode': '',
-                'speed_kph': '',
-                'takeover_result': '',
-                'road_test_result': '',
             })
-        elif self._is_highway_issue(self.current_issue):
+        elif schema == FUNCTION_CHECK_MARKING_SCHEMA:
+            test_result = self._combo_value(self.takeover_result)
             updates.update({
-                'marking_schema': HIGHWAY_MARKING_SCHEMA,
-                'road_type': '',
+                'case_id': self.case_id.text().strip(),
+                'test_result': test_result,
+                'problem_tab': 'Driving function check',
+                'problem_type': FUNCTION_CHECK_TEST_FUNCTION,
+                'ego_action': test_result,
+            })
+        elif schema == HIGHWAY_MARKING_SCHEMA:
+            updates.update({
                 'scene_type': self._combo_value(self.scene_type),
                 'problem_tab': HIGHWAY_PROBLEM_TAB,
                 'problem_type': self._combo_value(self.problem_type),
-                'target_type': '',
                 'ego_action': self._combo_value(self.ego_action),
-                'case_id': '',
                 'severity_level': self._combo_value(self.severity_level),
-                'active_safety_function': '',
-                'active_safety_mode': '',
-                'speed_kph': '',
-                'takeover_result': '',
-                'road_test_result': '',
-                'test_result': '',
             })
-        elif self._is_parking_issue(self.current_issue):
+        elif schema == PARKING_MARKING_SCHEMA:
             subject_scene = self._combo_value(self.parking_subject_scene)
             space_category = self._combo_value(self.parking_space_category)
             updates.update({
-                'marking_schema': PARKING_MARKING_SCHEMA,
                 'road_type': space_category,
                 'scene_type': subject_scene,
                 'problem_tab': 'Parking',
                 'problem_type': subject_scene,
-                'target_type': '',
                 'ego_action': self._combo_value(self.park_in_result) or self._combo_value(self.park_out_result),
                 'case_id': self.case_id.text().strip(),
                 'parking_subject_scene': subject_scene,
@@ -833,23 +1100,38 @@ class PlaybackPage(QWidget):
                 'jerk_result': self._combo_value(self.jerk_result),
                 'parking_time_sec': self.parking_time_sec.text().strip(),
                 'maneuver_count': self.maneuver_count.text().strip(),
-                'active_safety_function': '',
-                'active_safety_mode': '',
-                'speed_kph': '',
-                'takeover_result': '',
-                'road_test_result': '',
-                'test_result': '',
-                'severity_level': '',
             })
-        elif self._is_campus_road_issue(self.current_issue):
+        elif schema == URBAN_CITY_MARKING_SCHEMA:
+            target_type = self._combo_value(self.target_type)
+            target_behavior = ''
+            if target_type not in URBAN_CITY_TARGET_BEHAVIOR_DISABLED_TYPES:
+                target_behavior = self._combo_value(self.target_behavior)
             updates.update({
-                'marking_schema': CAMPUS_ROAD_MARKING_SCHEMA,
-                'case_id': '',
-                'active_safety_function': '',
-                'active_safety_mode': '',
-                'speed_kph': '',
-                'takeover_result': '',
-                'road_test_result': '',
+                'scene_type': self._combo_value(self.scene_type),
+                'ego_condition': self._combo_value(self.ego_condition),
+                'problem_tab': self._combo_value(self.problem_tab),
+                'problem_type': self._combo_value(self.problem_type),
+                'target_type': target_type,
+                'target_behavior': target_behavior,
+                'ego_action': self._combo_value(self.ego_action),
+            })
+        elif schema == CAMPUS_ROAD_MARKING_SCHEMA:
+            updates.update({
+                'road_type': self._combo_value(self.road_type),
+                'scene_type': self._combo_value(self.scene_type),
+                'problem_tab': self._combo_value(self.problem_tab),
+                'problem_type': self._combo_value(self.problem_type),
+                'target_type': self._combo_value(self.target_type),
+                'ego_action': self._combo_value(self.ego_action),
+            })
+        else:
+            updates.update({
+                'road_type': self._combo_value(self.road_type),
+                'scene_type': self._combo_value(self.scene_type),
+                'problem_tab': self._combo_value(self.problem_tab),
+                'problem_type': self._combo_value(self.problem_type),
+                'target_type': self._combo_value(self.target_type),
+                'ego_action': self._combo_value(self.ego_action),
             })
         run_root = Path(str(self.current_run['run_root']))
         updated = self.playback_service.update_issue(run_root, str(self.current_issue['issue_id']), updates)
@@ -890,20 +1172,39 @@ class PlaybackPage(QWidget):
         self._fill_combo(self.problem_type, self._standard_problem_options().get(problem_tab, []))
         self._set_combo_value(self.problem_type, current_value)
 
+    def _refresh_target_behavior_enabled(self, _index: int) -> None:
+        is_urban_city = self._issue_schema(self.current_issue) == URBAN_CITY_MARKING_SCHEMA
+        target_type = self._combo_value(self.target_type)
+        behavior_disabled = (
+            not is_urban_city
+            or not target_type
+            or target_type in URBAN_CITY_TARGET_BEHAVIOR_DISABLED_TYPES
+        )
+        if behavior_disabled:
+            self._set_combo_value(self.target_behavior, "")
+        self.target_behavior.setEnabled(self.edit_mode and not behavior_disabled)
+
     def _load_issue_into_editor(self, issue: Dict[str, object]) -> None:
-        self._apply_standard_combo_options(self._issue_schema(issue))
-        if self._is_campus_field_issue(issue):
+        schema = self._issue_schema(issue)
+        self._apply_standard_combo_options(schema)
+        self._apply_editor_schema(schema)
+        if self._is_campus_field_issue(issue) or self._is_function_check_issue(issue):
             self._fill_combo(self.takeover_result, ["通过", "失败"], include_empty=True)
         else:
             self._fill_combo(self.takeover_result, ["pass", "fail"], include_empty=True)
         self._set_combo_value(self.road_type, str(issue.get('road_type', '')))
         self._set_combo_value(self.scene_type, str(issue.get('scene_type', '')))
+        self._set_combo_value(self.ego_condition, str(issue.get('ego_condition', '')))
         tab_name = str(issue.get('problem_tab', ''))
         if tab_name:
             self._set_combo_value(self.problem_tab, tab_name)
         self._refresh_problem_types(self.problem_tab.currentIndex())
         self._set_combo_value(self.problem_type, str(issue.get('problem_type', '')))
         self._set_combo_value(self.target_type, str(issue.get('target_type', '')))
+        if self._is_urban_city_issue(issue) and str(issue.get('target_type', '')) not in URBAN_CITY_TARGET_BEHAVIOR_DISABLED_TYPES:
+            self._set_combo_value(self.target_behavior, str(issue.get('target_behavior', '')))
+        else:
+            self._set_combo_value(self.target_behavior, "")
         self._set_combo_value(self.ego_action, str(issue.get('ego_action', '')))
         self._set_combo_value(self.severity_level, str(issue.get('severity_level', '')))
         if self._is_campus_road_issue(issue) or self._is_highway_issue(issue):
@@ -913,7 +1214,7 @@ class PlaybackPage(QWidget):
         self._set_combo_value(self.active_safety_function, str(issue.get('active_safety_function', '')))
         self._set_combo_value(self.active_safety_mode, str(issue.get('active_safety_mode', '')))
         self.speed_kph.setText(str(issue.get('speed_kph', '')))
-        if self._is_campus_field_issue(issue):
+        if self._is_campus_field_issue(issue) or self._is_function_check_issue(issue):
             self._set_combo_value(self.takeover_result, str(issue.get('test_result', '')))
         else:
             self._set_combo_value(self.takeover_result, str(issue.get('takeover_result', '')))
@@ -946,23 +1247,28 @@ class PlaybackPage(QWidget):
     def _set_edit_enabled(self, enabled: bool) -> None:
         self.edit_mode = enabled
         is_active_safety = bool(
-            self._issue_schema(self.current_issue) == 'active_safety'
+            self._issue_schema(self.current_issue) == ACTIVE_SAFETY_MARKING_SCHEMA
         )
+        is_urban_city = self._is_urban_city_issue(self.current_issue)
         is_campus_road = self._is_campus_road_issue(self.current_issue)
         is_campus_field = self._is_campus_field_issue(self.current_issue)
+        is_function_check = self._is_function_check_issue(self.current_issue)
         is_highway = self._is_highway_issue(self.current_issue)
         is_parking = self._is_parking_issue(self.current_issue)
         standard_enabled = enabled and not is_active_safety and not is_parking
         active_enabled = enabled and is_active_safety
         campus_field_enabled = enabled and is_campus_field
+        function_check_enabled = enabled and is_function_check
         parking_enabled = enabled and is_parking
 
-        standard_field_enabled = standard_enabled and not is_campus_field
-        self.road_type.setEnabled(standard_field_enabled and not is_highway)
+        standard_field_enabled = standard_enabled and not is_campus_field and not is_function_check
+        self.road_type.setEnabled(standard_field_enabled and not is_highway and not is_urban_city)
         self.scene_type.setEnabled(standard_field_enabled)
+        self.ego_condition.setEnabled(enabled and is_urban_city)
         self.problem_tab.setEnabled(standard_field_enabled and not is_highway)
         self.problem_type.setEnabled(standard_field_enabled)
         self.target_type.setEnabled(standard_field_enabled and not is_highway)
+        self._refresh_target_behavior_enabled(self.target_type.currentIndex())
         self.ego_action.setEnabled(standard_field_enabled)
         self.severity_level.setEnabled(enabled and is_highway)
 
@@ -974,12 +1280,12 @@ class PlaybackPage(QWidget):
         ]:
             widget.setEnabled(active_enabled)
 
-        self.takeover_result.setEnabled(active_enabled or campus_field_enabled)
+        self.takeover_result.setEnabled(active_enabled or campus_field_enabled or function_check_enabled)
         for widget in [
             self.comment,
         ]:
             widget.setEnabled(enabled)
-        self.case_id.setEnabled(enabled and not is_campus_road and not is_highway)
+        self.case_id.setEnabled(enabled and not is_urban_city and not is_campus_road and not is_highway)
         for widget in [
             self.parking_subject_scene,
             self.parking_space_category,

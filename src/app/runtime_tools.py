@@ -22,8 +22,12 @@ def _load_config_ffmpeg_path() -> Optional[str]:
             with config_file.open("r", encoding="utf-8") as f:
                 config = json.load(f)
             ffmpeg = config.get("ffmpeg_path", "").strip()
-            if ffmpeg and Path(ffmpeg).exists():
-                return ffmpeg
+            if ffmpeg:
+                ffmpeg_path = Path(ffmpeg).expanduser()
+                if not ffmpeg_path.is_absolute():
+                    ffmpeg_path = get_app_root() / ffmpeg_path
+                if ffmpeg_path.exists():
+                    return str(ffmpeg_path)
         except Exception:
             pass
     return None
@@ -55,7 +59,29 @@ def _candidate_roots() -> list[Path]:
     return ordered
 
 
-def resolve_tool_path(name: str, env_var: Optional[str] = None) -> Optional[str]:
+def _search_roots() -> list[Path]:
+    roots: list[Path] = []
+    for root in _candidate_roots():
+        roots.append(root)
+        roots.append(root / "tools")
+
+    seen: set[str] = set()
+    ordered: list[Path] = []
+    for root in roots:
+        key = str(root).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        ordered.append(root)
+    return ordered
+
+
+def resolve_tool_path(
+    name: str,
+    env_var: Optional[str] = None,
+    *,
+    include_system_path: bool = True,
+) -> Optional[str]:
     if env_var:
         configured = os.environ.get(env_var)
         if configured:
@@ -67,25 +93,34 @@ def resolve_tool_path(name: str, env_var: Optional[str] = None) -> Optional[str]
     if sys.platform.startswith('win') and not name.lower().endswith('.exe'):
         executable_names.insert(0, f'{name}.exe')
 
-    for root in _candidate_roots():
+    for root in _search_roots():
         for executable_name in executable_names:
             candidate = root / executable_name
             if candidate.exists():
                 return str(candidate)
 
-    for executable_name in executable_names:
-        found = shutil.which(executable_name)
-        if found:
-            return found
+    if include_system_path:
+        for executable_name in executable_names:
+            found = shutil.which(executable_name)
+            if found:
+                return found
 
     return None
 
 
 def resolve_ffmpeg_path() -> Optional[str]:
-    # 优先从 config.json 读取
+    bundled_path = resolve_tool_path(
+        'ffmpeg',
+        env_var='BENCHMARK_TOOL_FFMPEG',
+        include_system_path=False,
+    )
+    if bundled_path:
+        return bundled_path
+
     config_path = _load_config_ffmpeg_path()
     if config_path:
         return config_path
+
     return resolve_tool_path('ffmpeg', env_var='BENCHMARK_TOOL_FFMPEG')
 
 

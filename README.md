@@ -3,7 +3,7 @@
 
 ### Windows环境（PowerShell终端）
 
-准备工作：下载并解压ffmpeg，然后把ffmpeg.exe、ffprobe.exe放到项目tools目录下，打包时会用到。
+准备工作：下载并解压ffmpeg，然后把ffmpeg.exe、ffprobe.exe放到项目tools目录下；打包后的软件会内置这两个文件，设置页的 FFmpeg 路径默认留空即可。
 
 ```powershell
 # 安装独立python环境

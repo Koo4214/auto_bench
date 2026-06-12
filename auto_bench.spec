@@ -12,6 +12,7 @@ APP_NAME = "auto_bench"
 MAIN_SCRIPT = PROJECT_ROOT / "src" / "app" / "m1_app.py"
 FFMPEG_EXE = PROJECT_ROOT / "tools" / "ffmpeg.exe"
 FFPROBE_EXE = PROJECT_ROOT / "tools" / "ffprobe.exe"
+CASEID_DIR = PROJECT_ROOT / "caseid"
 
 
 hiddenimports = (
@@ -28,12 +29,16 @@ for tool_path in (FFMPEG_EXE, FFPROBE_EXE):
     if tool_path.exists():
         binaries.append((str(tool_path), "."))
 
+datas = []
+if CASEID_DIR.exists():
+    datas.append((str(CASEID_DIR), "caseid"))
+
 
 a = Analysis(
     [str(MAIN_SCRIPT)],
     pathex=[str(PROJECT_ROOT)],
     binaries=binaries,
-    datas=[],
+    datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},

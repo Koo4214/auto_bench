@@ -5,6 +5,10 @@ import time
 from pathlib import Path
 from typing import List, Optional
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from PyQt5.QtCore import QTimer, qInstallMessageHandler
 from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox, QStackedWidget
 
@@ -95,12 +99,12 @@ class MainWindow(QMainWindow):
         if ffmpeg_path and not Path(ffmpeg_path).exists():
             self._message("配置错误", f"指定的 FFmpeg 路径不存在:\n{ffmpeg_path}")
             return
-        # 若未指定路径则尝试自动解析，解析失败则拦截
+        # 若未指定路径则尝试自动解析内置 FFmpeg，解析失败则拦截
         if not ffmpeg_path:
             from src.app.runtime_tools import resolve_ffmpeg_path
             auto_path = resolve_ffmpeg_path()
             if not auto_path:
-                self._message("配置错误", "未找到 FFmpeg，请在设置页面指定 FFmpeg 路径。")
+                self._message("配置错误", "未找到内置 FFmpeg。如需临时使用外部版本，请在设置页面指定 FFmpeg 路径。")
                 return
 
         self.pending_form = self.setup_page.collect_form()
@@ -283,7 +287,11 @@ class MainWindow(QMainWindow):
         self.refresh_status()
 
     def create_issue(self) -> None:
-        payload = self.recording_page.issue_editor.get_issue_payload()
+        try:
+            payload = self.recording_page.issue_editor.get_issue_payload()
+        except ValueError as exc:
+            self._message("问题打点", str(exc))
+            return
         issue = self.service.create_probe_issue(**payload)
         self.recording_page.issue_editor.clear_comment()
         self.recording_page.append_log(f"已创建问题打点：{issue.issue_id}")

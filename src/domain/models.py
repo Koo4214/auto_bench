@@ -78,6 +78,8 @@ class IssueRecord:
     triage_time: Optional[str] = None
     clip_status: ClipStatus = ClipStatus.PENDING
     marking_schema: str = "legacy"
+    ego_condition: str = ""
+    target_behavior: str = ""
     active_safety_function: str = ""
     active_safety_mode: str = ""
     speed_kph: str = ""

@@ -18,11 +18,21 @@ _NS = {
 _REL_NS = {
     "rel": "http://schemas.openxmlformats.org/package/2006/relationships",
 }
-_PREFERRED_FILE_NAME = "EXNGP园区&地库场地对标测试用例.xlsx"
+_PREFERRED_FILE_NAME = "对标功能点检用例.xlsx"
+_CASE_DIR_NAME = "行车功能点检caseid"
+_DETAIL_HEADERS = (
+    "测试类型",
+    "测试项目",
+    "测试场景描述",
+    "测试道路",
+    "初始条件",
+    "测试步骤",
+    "测试记录",
+)
 
 
 @dataclass(frozen=True)
-class CampusFieldCaseRecord:
+class FunctionCheckCaseRecord:
     case_id: str
     sheet_name: str
     details: Sequence[Tuple[str, str]] = ()
@@ -33,8 +43,8 @@ class CampusFieldCaseRecord:
 
 
 @dataclass(frozen=True)
-class CampusFieldCaseIdCatalog:
-    records: Sequence[CampusFieldCaseRecord]
+class FunctionCheckCaseIdCatalog:
+    records: Sequence[FunctionCheckCaseRecord]
     source_file: Path | None = None
 
     @property
@@ -55,7 +65,7 @@ class CampusFieldCaseIdCatalog:
         ]
         return (starts + contains)[:limit]
 
-    def get(self, case_id: str) -> CampusFieldCaseRecord | None:
+    def get(self, case_id: str) -> FunctionCheckCaseRecord | None:
         normalized = case_id.strip().lower()
         if not normalized:
             return None
@@ -65,21 +75,21 @@ class CampusFieldCaseIdCatalog:
         )
 
 
-_CATALOG_CACHE: CampusFieldCaseIdCatalog | None = None
+_CATALOG_CACHE: FunctionCheckCaseIdCatalog | None = None
 
 
-def load_campus_field_case_id_catalog() -> CampusFieldCaseIdCatalog:
+def load_function_check_case_id_catalog() -> FunctionCheckCaseIdCatalog:
     global _CATALOG_CACHE
     if _CATALOG_CACHE is not None:
         return _CATALOG_CACHE
 
     files = _find_case_id_files()
     if not files:
-        _CATALOG_CACHE = CampusFieldCaseIdCatalog(records=[])
+        _CATALOG_CACHE = FunctionCheckCaseIdCatalog(records=[])
         return _CATALOG_CACHE
 
     source_file = files[0]
-    _CATALOG_CACHE = CampusFieldCaseIdCatalog(
+    _CATALOG_CACHE = FunctionCheckCaseIdCatalog(
         records=_extract_records_from_xlsx(source_file),
         source_file=source_file,
     )
@@ -89,15 +99,18 @@ def load_campus_field_case_id_catalog() -> CampusFieldCaseIdCatalog:
 def _find_case_id_files() -> List[Path]:
     roots: List[Path] = []
     cwd = Path.cwd()
-    for root in [get_app_root(), cwd, *cwd.parents, Path(__file__).resolve().parents[3]]:
+    app_root = get_app_root()
+    for root in [app_root, app_root / "_internal", cwd, *cwd.parents, Path(__file__).resolve().parents[3]]:
         if root not in roots:
             roots.append(root)
 
     files: Dict[Path, None] = {}
     for root in roots:
-        case_dir = root / "caseid" / "园区测试场测caseid"
+        case_dir = root / "caseid" / _CASE_DIR_NAME
         if case_dir.exists():
             for path in case_dir.glob("*.xlsx"):
+                if path.name.startswith("~$"):
+                    continue
                 files[path.resolve()] = None
 
     return sorted(
@@ -106,11 +119,11 @@ def _find_case_id_files() -> List[Path]:
     )
 
 
-def _extract_records_from_xlsx(path: Path) -> List[CampusFieldCaseRecord]:
+def _extract_records_from_xlsx(path: Path) -> List[FunctionCheckCaseRecord]:
     with ZipFile(path) as archive:
         shared_strings = _read_shared_strings(archive)
         sheets = _read_sheets(archive)
-        records: List[CampusFieldCaseRecord] = []
+        records: List[FunctionCheckCaseRecord] = []
         for sheet_name, sheet_path in sheets:
             records.extend(_extract_sheet_records(archive, sheet_path, sheet_name, shared_strings))
     return records
@@ -148,9 +161,9 @@ def _extract_sheet_records(
     sheet_path: str,
     sheet_name: str,
     shared_strings: Sequence[str],
-) -> Iterable[CampusFieldCaseRecord]:
+) -> Iterable[FunctionCheckCaseRecord]:
     headers: Dict[int, str] = {}
-    case_id_columns: set[int] = set()
+    case_id_column: int | None = None
     with archive.open(sheet_path) as stream:
         for _event, row_element in ET.iterparse(stream, events=("end",)):
             if not row_element.tag.endswith("}row"):
@@ -161,21 +174,18 @@ def _extract_sheet_records(
                 for cell in row_element.findall("a:c", _NS)
             }
 
-            if not case_id_columns:
+            if case_id_column is None:
                 for column_index, value in row_values.items():
                     if _is_case_id_header(value):
                         headers = row_values
-                        case_id_columns.add(column_index)
+                        case_id_column = column_index
+                        break
                 row_element.clear()
                 continue
 
-            for column_index in case_id_columns:
-                case_id = row_values.get(column_index, "").strip()
-                if not case_id:
-                    continue
-                if _is_case_id_header(case_id):
-                    continue
-                yield CampusFieldCaseRecord(
+            case_id = row_values.get(case_id_column, "").strip()
+            if case_id and not _is_case_id_header(case_id):
+                yield FunctionCheckCaseRecord(
                     case_id=case_id,
                     sheet_name=sheet_name,
                     details=_row_details(row_values, headers),
@@ -186,10 +196,15 @@ def _extract_sheet_records(
 
 def _row_details(row_values: Dict[int, str], headers: Dict[int, str]) -> Tuple[Tuple[str, str], ...]:
     details: List[Tuple[str, str]] = []
+    allowed_headers = {_normalize_header(header) for header in _DETAIL_HEADERS}
     for column_index in sorted(headers):
         header = headers.get(column_index, "").strip()
         value = row_values.get(column_index, "").strip()
-        if header and value:
+        if not header or not value:
+            continue
+        if _is_case_id_header(header):
+            continue
+        if _normalize_header(header) in allowed_headers:
             details.append((header, value))
     return tuple(details)
 
@@ -209,7 +224,7 @@ def _cell_text(cell: ET.Element, shared_strings: Sequence[str]) -> str:
 
 
 def _is_case_id_header(value: str) -> bool:
-    return _normalize_header(value) == "测试编号"
+    return _normalize_header(value) == "caseid"
 
 
 def _normalize_header(value: str) -> str:
