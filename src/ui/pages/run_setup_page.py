@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict
 
 from PyQt5.QtWidgets import (
+    QComboBox,
     QFileDialog,
     QFormLayout,
     QHBoxLayout,
@@ -19,6 +20,7 @@ from PyQt5.QtWidgets import (
 )
 
 from src.app.runtime_tools import get_app_root, resolve_ffmpeg_path
+from src.domain.test_functions import TEST_FUNCTION_OPTIONS, normalize_test_function
 from src.ui.widgets.data_management_dialog import DataManagementDialog
 
 
@@ -31,7 +33,7 @@ class RunSetupPage(QWidget):
         layout.addWidget(title)
 
         form_layout = QFormLayout()
-        self.output_path = QLineEdit(str(Path.cwd() / "data"))
+        self.output_path = QLineEdit(str(get_app_root() / "data"))
         self.output_browse_btn = QPushButton("浏览")
         output_row = QHBoxLayout()
         output_row.addWidget(self.output_path)
@@ -40,6 +42,7 @@ class RunSetupPage(QWidget):
         output_container.setLayout(output_row)
 
         self.ffmpeg_path = QLineEdit("")
+        self.ffmpeg_path.setPlaceholderText("留空则使用软件内置 FFmpeg")
         self.ffmpeg_browse_btn = QPushButton("浏览")
         ffmpeg_row = QHBoxLayout()
         ffmpeg_row.addWidget(self.ffmpeg_path)
@@ -47,6 +50,8 @@ class RunSetupPage(QWidget):
         ffmpeg_container = QWidget()
         ffmpeg_container.setLayout(ffmpeg_row)
 
+        self.test_function = QComboBox()
+        self.test_function.addItems(TEST_FUNCTION_OPTIONS)
         self.test_date = QLineEdit(datetime.now().strftime("%Y-%m-%d"))
         self.vehicle_model = QLineEdit("ProbeVehicle")
         self.vehicle_id = QLineEdit("TEST001")
@@ -57,6 +62,7 @@ class RunSetupPage(QWidget):
         self.weather = QLineEdit("Sunny")
         self.day_night = QLineEdit("Day")
         for label, field in [
+            ("测试功能", self.test_function),
             ("输出路径", output_container),
             ("FFmpeg 路径", ffmpeg_container),
             ("测试日期", self.test_date),
@@ -116,25 +122,42 @@ class RunSetupPage(QWidget):
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             "选择 FFmpeg 可执行文件",
-            self.ffmpeg_path.text().strip() or str(Path.cwd()),
+            self.ffmpeg_path.text().strip() or str(get_app_root()),
             "可执行文件 (*.exe);;所有文件 (*)",
         )
         if file_path:
             self.ffmpeg_path.setText(file_path)
 
+    @staticmethod
+    def _is_under(path: Path, root: Path) -> bool:
+        try:
+            path.resolve().relative_to(root.resolve())
+            return True
+        except ValueError:
+            return False
+
     def load_config(self) -> None:
         config_file = get_app_root() / "config.json"
         if not config_file.exists():
-            # 回退：尝试用环境变量填充 ffmpeg 路径
-            env_ffmpeg = resolve_ffmpeg_path()
-            if env_ffmpeg:
-                self.ffmpeg_path.setText(env_ffmpeg)
             return
         try:
             with config_file.open("r", encoding="utf-8") as f:
                 config = json.load(f)
             self.output_path.setText(config.get("output_path", self.output_path.text()))
-            self.ffmpeg_path.setText(config.get("ffmpeg_path", ""))
+            configured_ffmpeg = config.get("ffmpeg_path", "").strip()
+            bundled_ffmpeg = resolve_ffmpeg_path()
+            if (
+                configured_ffmpeg
+                and Path(configured_ffmpeg).exists()
+                and not (
+                    bundled_ffmpeg
+                    and self._is_under(Path(bundled_ffmpeg), get_app_root())
+                )
+            ):
+                self.ffmpeg_path.setText(configured_ffmpeg)
+            else:
+                self.ffmpeg_path.setText("")
+            self.set_test_function(config.get("test_function", ""))
             self.vehicle_model.setText(config.get("vehicle_model", self.vehicle_model.text()))
             self.vehicle_id.setText(config.get("vehicle_id", self.vehicle_id.text()))
             self.version.setText(config.get("version", self.version.text()))
@@ -147,6 +170,7 @@ class RunSetupPage(QWidget):
         return {
             "output_path": self.output_path.text().strip(),
             "ffmpeg_path": self.ffmpeg_path.text().strip(),
+            "test_function": self.test_function_value(),
             "vehicle_model": self.vehicle_model.text().strip(),
             "vehicle_id": self.vehicle_id.text().strip(),
             "version": self.version.text().strip(),
@@ -179,8 +203,18 @@ class RunSetupPage(QWidget):
     def ffmpeg_path_value(self) -> str:
         return self.ffmpeg_path.text().strip()
 
+    def set_test_function(self, value: object) -> None:
+        test_function = normalize_test_function(value)
+        index = self.test_function.findText(test_function)
+        if index >= 0:
+            self.test_function.setCurrentIndex(index)
+
+    def test_function_value(self) -> str:
+        return normalize_test_function(self.test_function.currentText())
+
     def collect_form(self) -> Dict[str, str]:
         return {
+            "test_function": self.test_function_value(),
             "test_date": self.test_date.text().strip(),
             "vehicle_model": self.vehicle_model.text().strip(),
             "vehicle_id": self.vehicle_id.text().strip(),
@@ -193,7 +227,13 @@ class RunSetupPage(QWidget):
         }
 
     def output_path_value(self) -> str:
-        return self.output_path.text().strip() or str(Path.cwd() / "data")
+        output_path = self.output_path.text().strip()
+        if not output_path:
+            return str(get_app_root() / "data")
+        path = Path(output_path).expanduser()
+        if not path.is_absolute():
+            path = get_app_root() / path
+        return str(path)
 
     def append_log(self, message: str) -> None:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

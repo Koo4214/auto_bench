@@ -4,7 +4,9 @@ __pycache__/
 venv/
 data/
 tmp/
+build/
 dist/
+release/
 .qoder/
 
 ffmpeg.exe

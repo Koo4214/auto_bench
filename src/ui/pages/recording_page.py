@@ -171,6 +171,7 @@ class RecordingPage(QWidget):
             timestamp_text = time.strftime("%H:%M:%S", time.localtime(float(current_timestamp)))
         self.screen_label.setText(f"时间戳: {timestamp_text}")
         self.issue_editor.set_issue_count(snapshot.get("issue_count", 0))
+        self.issue_editor.set_case_id_counts(snapshot.get("case_id_counts", {}))
 
         chart_ts = snapshot.get("chart_timestamp")
         if chart_ts is not None:
@@ -205,4 +206,3 @@ class RecordingPage(QWidget):
         viewfinder.setMinimumHeight(220)
         viewfinder.setStyleSheet("background-color: #111; border: 1px solid #555;")
         return viewfinder
-

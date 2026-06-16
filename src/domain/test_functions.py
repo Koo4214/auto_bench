@@ -1,0 +1,39 @@
+from __future__ import annotations
+
+from typing import Tuple
+
+
+URBAN_TEST_FUNCTION = "行车测试-城区"
+CAMPUS_ROAD_TEST_FUNCTION = "园区测试（路试）"
+CAMPUS_FIELD_TEST_FUNCTION = "园区测试（场地）"
+HIGHWAY_TEST_FUNCTION = "行车测试-高速"
+PARKING_TEST_FUNCTION = "泊车测试"
+FUNCTION_CHECK_TEST_FUNCTION = "行车测试-功能点检"
+ACTIVE_SAFETY_TEST_FUNCTION = "主动安全测试"
+
+DEFAULT_TEST_FUNCTION = URBAN_TEST_FUNCTION
+
+TEST_FUNCTION_OPTIONS: Tuple[str, ...] = (
+    URBAN_TEST_FUNCTION,
+    HIGHWAY_TEST_FUNCTION,
+    FUNCTION_CHECK_TEST_FUNCTION,
+    CAMPUS_ROAD_TEST_FUNCTION,
+    CAMPUS_FIELD_TEST_FUNCTION,
+    PARKING_TEST_FUNCTION,
+    ACTIVE_SAFETY_TEST_FUNCTION,
+)
+
+LEGACY_TEST_FUNCTION_MAP = {
+    "行车-外部路测试": URBAN_TEST_FUNCTION,
+    "行车-园区测试": CAMPUS_ROAD_TEST_FUNCTION,
+    "行车-园区测试（场地）": CAMPUS_FIELD_TEST_FUNCTION,
+    "行车-高速测试": HIGHWAY_TEST_FUNCTION,
+    "功能点检": FUNCTION_CHECK_TEST_FUNCTION,
+}
+
+
+def normalize_test_function(value: object) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return DEFAULT_TEST_FUNCTION
+    return LEGACY_TEST_FUNCTION_MAP.get(text, text)

@@ -8,6 +8,7 @@ from typing import Dict, Optional, Sequence
 
 from src.domain.enums import RunState
 from src.domain.models import RunMeta, RunPaths, RunStatus
+from src.domain.test_functions import DEFAULT_TEST_FUNCTION, normalize_test_function
 from src.devices.camera_preview import CameraPreviewManager
 from src.devices.historical_replay import HistoricalImuReplayDriver, HistoricalRtkReplayDriver
 from src.devices.imu_ble_driver import ImuBleDriver
@@ -18,6 +19,9 @@ from src.services.clip_service import ClipService
 from src.services.issue_service import IssueService
 from src.storage.file_layout import build_run_paths, ensure_run_directories
 from src.storage.repositories import RunRepository
+
+
+G_TO_MPS2 = 9.80665
 
 
 class RunSessionService:
@@ -109,7 +113,7 @@ class RunSessionService:
             route=form_data["route"],
             weather=form_data["weather"],
             day_night=form_data["day_night"],
-            test_function=form_data.get("test_function", "行车-外部路测试"),
+            test_function=normalize_test_function(form_data.get("test_function", DEFAULT_TEST_FUNCTION)),
         )
         self.paths = build_run_paths(
             self.base_dir,
@@ -206,6 +210,26 @@ class RunSessionService:
         ego_action: str = "NoAction",
         case_id: str = "",
         comment: str = "",
+        marking_schema: str = "legacy",
+        ego_condition: str = "",
+        target_behavior: str = "",
+        active_safety_function: str = "",
+        active_safety_mode: str = "",
+        speed_kph: str = "",
+        takeover_result: str = "",
+        road_test_result: str = "",
+        test_result: str = "",
+        severity_level: str = "",
+        parking_subject_scene: str = "",
+        parking_space_category: str = "",
+        recognition_result: str = "",
+        park_in_result: str = "",
+        park_out_result: str = "",
+        obstacle_result: str = "",
+        pose_result: str = "",
+        jerk_result: str = "",
+        parking_time_sec: str = "",
+        maneuver_count: str = "",
     ):
         if not self.status or not self.issue_service:
             raise RuntimeError("run not started")
@@ -229,6 +253,26 @@ class RunSessionService:
             ego_action=ego_action,
             case_id=case_id,
             comment=comment,
+            marking_schema=marking_schema,
+            ego_condition=ego_condition,
+            target_behavior=target_behavior,
+            active_safety_function=active_safety_function,
+            active_safety_mode=active_safety_mode,
+            speed_kph=speed_kph,
+            takeover_result=takeover_result,
+            road_test_result=road_test_result,
+            test_result=test_result,
+            severity_level=severity_level,
+            parking_subject_scene=parking_subject_scene,
+            parking_space_category=parking_space_category,
+            recognition_result=recognition_result,
+            park_in_result=park_in_result,
+            park_out_result=park_out_result,
+            obstacle_result=obstacle_result,
+            pose_result=pose_result,
+            jerk_result=jerk_result,
+            parking_time_sec=parking_time_sec,
+            maneuver_count=maneuver_count,
         )
         self.status = replace(self.status, issue_count=len(self.issue_service.issues))
         self.repository.save_status(self.paths.status_file, self.status)
@@ -410,10 +454,17 @@ class RunSessionService:
             chart_timestamp = float(rtk_sample['local_timestamp'])
         elif imu_sample and imu_sample.get('local_timestamp') is not None:
             chart_timestamp = float(imu_sample['local_timestamp'])
+        case_id_counts: Dict[str, int] = {}
+        if self.issue_service:
+            for issue in self.issue_service.issues:
+                case_id = issue.case_id.strip()
+                if case_id:
+                    case_id_counts[case_id] = case_id_counts.get(case_id, 0) + 1
         return {
             "run_state": self.status.state.value if self.status else "idle",
             "run_id": self.status.run_id if self.status else None,
             "issue_count": self.status.issue_count if self.status else 0,
+            "case_id_counts": case_id_counts,
             "rtk_connected": self.rtk_driver.connected if self.rtk_driver else False,
             "rtk_source": getattr(self.rtk_driver, 'mode_label', 'live') if self.rtk_driver else None,
             "rtk_last_speed": rtk_sample.get("vehicle_speed") if rtk_sample else None,
@@ -497,8 +548,12 @@ class RunSessionService:
         longitudinal_acc = None
         lateral_acc = None
         if rtk_sample is not None:
-            longitudinal_acc = rtk_sample.get('acc_x')
-            lateral_acc = rtk_sample.get('acc_y')
+            raw_longitudinal_acc = rtk_sample.get('acc_y')
+            raw_lateral_acc = rtk_sample.get('acc_x')
+            if raw_longitudinal_acc is not None:
+                longitudinal_acc = float(raw_longitudinal_acc) * G_TO_MPS2
+            if raw_lateral_acc is not None:
+                lateral_acc = float(raw_lateral_acc) * G_TO_MPS2
             timestamp = rtk_sample.get('local_timestamp')
             if timestamp is not None:
                 timestamp = float(timestamp)
@@ -510,13 +565,13 @@ class RunSessionService:
                 ):
                     dt = timestamp - self._last_chart_rtk_timestamp
                     if dt > 1e-6:
-                        self._last_chart_jerk = (float(longitudinal_acc) - self._last_chart_longitudinal_acc) / dt
+                        self._last_chart_jerk = (longitudinal_acc - self._last_chart_longitudinal_acc) / dt
                 self._last_chart_rtk_timestamp = timestamp
                 if longitudinal_acc is not None:
-                    self._last_chart_longitudinal_acc = float(longitudinal_acc)
+                    self._last_chart_longitudinal_acc = longitudinal_acc
         return {
-            'longitudinal_acc': float(longitudinal_acc) if longitudinal_acc is not None else None,
-            'lateral_acc': float(lateral_acc) if lateral_acc is not None else None,
+            'longitudinal_acc': longitudinal_acc,
+            'lateral_acc': lateral_acc,
             'jerk': self._last_chart_jerk,
         }
 

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from .enums import ClipStatus, RunState, TriageStatus
+from .test_functions import DEFAULT_TEST_FUNCTION
 
 
 @dataclass
@@ -20,7 +21,7 @@ class RunMeta:
     route: str
     weather: str
     day_night: str
-    test_function: str = "行车-外部路测试"
+    test_function: str = DEFAULT_TEST_FUNCTION
     imu_zero_offset_deg: float = 0.0
     imu_angle_axis: str = "angle_z"
     imu_angle_inverted: bool = False
@@ -76,6 +77,26 @@ class IssueRecord:
     triage: TriageStatus = TriageStatus.UNTRIAGED
     triage_time: Optional[str] = None
     clip_status: ClipStatus = ClipStatus.PENDING
+    marking_schema: str = "legacy"
+    ego_condition: str = ""
+    target_behavior: str = ""
+    active_safety_function: str = ""
+    active_safety_mode: str = ""
+    speed_kph: str = ""
+    takeover_result: str = ""
+    road_test_result: str = ""
+    test_result: str = ""
+    severity_level: str = ""
+    parking_subject_scene: str = ""
+    parking_space_category: str = ""
+    recognition_result: str = ""
+    park_in_result: str = ""
+    park_out_result: str = ""
+    obstacle_result: str = ""
+    pose_result: str = ""
+    jerk_result: str = ""
+    parking_time_sec: str = ""
+    maneuver_count: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         payload = asdict(self)

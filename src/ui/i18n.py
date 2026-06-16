@@ -35,6 +35,7 @@ VALUE_LABELS: Dict[str, str] = {
     "Compliance": "\u5408\u89c4\u95ee\u9898",
     "Function": "\u529f\u80fd\u95ee\u9898",
     "No issue": "\u65e0\u95ee\u9898",
+    "Active safety": "\u4e3b\u52a8\u5b89\u5168",
     "Lane edge / line pressure": "\u8d34\u8fb9/\u538b\u7ebf",
     "Weaving / snake": "\u6446\u52a8/\u86c7\u5f62",
     "Lane departure": "\u51b2\u51fa\u8f66\u9053",

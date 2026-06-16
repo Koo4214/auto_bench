@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
+from PyQt5.QtCore import QObject, Qt, QStringListModel, pyqtSignal
 from PyQt5.QtWidgets import (
     QButtonGroup,
+    QCompleter,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -11,13 +13,39 @@ from PyQt5.QtWidgets import (
     QLineEdit,
     QPushButton,
     QSizePolicy,
+    QStackedWidget,
     QTabWidget,
     QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
+from src.domain.test_functions import (
+    ACTIVE_SAFETY_TEST_FUNCTION,
+    CAMPUS_FIELD_TEST_FUNCTION,
+    CAMPUS_ROAD_TEST_FUNCTION,
+    FUNCTION_CHECK_TEST_FUNCTION,
+    PARKING_TEST_FUNCTION,
+    URBAN_TEST_FUNCTION,
+    normalize_test_function,
+)
 from src.ui.i18n import zh
+from src.ui.widgets.active_safety_case_ids import (
+    ACTIVE_SAFETY_FUNCTIONS,
+    load_active_safety_case_id_catalog,
+)
+from src.ui.widgets.campus_field_case_ids import load_campus_field_case_id_catalog
+from src.ui.widgets.function_check_case_ids import load_function_check_case_id_catalog
+from src.ui.widgets.highway_kpi_tags import (
+    HIGHWAY_MARKING_SCHEMA,
+    HIGHWAY_PROBLEM_TAB,
+    HIGHWAY_TEST_FUNCTION,
+    load_highway_kpi_tag_catalog,
+)
+from src.ui.widgets.parking_case_ids import (
+    PARKING_SUBJECT_SCENES,
+    load_parking_case_id_catalog,
+)
 
 
 PROBLEM_OPTIONS: Dict[str, List[str]] = {
@@ -65,17 +93,254 @@ PROBLEM_OPTIONS: Dict[str, List[str]] = {
     ],
 }
 
+URBAN_CITY_MARKING_SCHEMA = "urban_city_test"
+CAMPUS_ROAD_MARKING_SCHEMA = "campus_road_test"
+CAMPUS_FIELD_MARKING_SCHEMA = "campus_field_test"
+FUNCTION_CHECK_MARKING_SCHEMA = "driving_function_check"
+PARKING_MARKING_SCHEMA = "parking_test"
+
+URBAN_CITY_SCENE_TYPES: List[str] = [
+    "直道",
+    "弯道",
+    "道路分流",
+    "道路汇流",
+    "主辅路切换",
+    "有保护路口",
+    "无保护路口",
+    "特殊路口",
+    "右转专用道",
+    "掉头",
+    "环岛",
+    "施工场景",
+]
+
+URBAN_CITY_PROBLEM_OPTIONS: Dict[str, List[str]] = {
+    "安全问题": [
+        "不减速或制动不足",
+        "跟车或跟停距离太近",
+        "加速过快或超速行驶",
+        "撞路沿或障碍物",
+        "逆向目标避让不足",
+        "危险变道或绕行",
+        "路口挤旁车",
+    ],
+    "舒适问题": [
+        "制动力过大",
+        "加减速顿挫",
+        "异常减速",
+        "溜车",
+        "摆动或蛇形",
+        "方向盘抖动",
+        "路口路径不合理",
+    ],
+    "效率问题": [
+        "跟车或跟停距离远",
+        "不加速或加速慢",
+        "未及时变道或绕行",
+        "变道或绕行不合理",
+        "异常靠边停车",
+    ],
+    "合规问题": [
+        "进逆向车道",
+        "不居中或贴边",
+        "压线（长时间骑线行驶）",
+        "压线（实线变道）",
+        "不按规定车道行驶（进公交、非机）",
+        "不进待转区",
+        "闯红灯",
+        "刹停过线",
+        "不礼让行人",
+        "靠边停车不合理",
+    ],
+    "导航问题": [
+        "变道找不到空档",
+        "不发起或过晚发起导航变道",
+        "主辅路或分合流未跟导航",
+        "路口通行不跟导航",
+        "逆导航变道",
+    ],
+    "漫游问题": [
+        "不合理变道",
+        "复合箭头通行优先级不合理",
+        "路口不按导向车道方向行驶",
+    ],
+    "功能问题": [
+        "功能无法激活",
+        "功能异常降级",
+        "功能异常退出",
+        "转向灯问题",
+        "仪表或大屏错误提醒",
+        "靠边停车异常",
+        "P档位激活异常或失败",
+    ],
+    "无问题": [
+        "good case",
+        "场景记录",
+    ],
+}
+
+URBAN_CITY_EGO_CONDITIONS: List[str] = [
+    "跟车",
+    "巡航（无前车）",
+    "静止",
+    "起步",
+    "跟停",
+    "变道",
+    "绕行",
+    "汇出",
+    "汇入",
+    "左转",
+    "右转",
+    "掉头",
+    "靠边停车",
+]
+
+URBAN_CITY_TARGET_TYPES: List[str] = [
+    "小车",
+    "大车",
+    "VRU",
+    "异形目标",
+    "障碍物",
+    "无目标",
+]
+
+URBAN_CITY_TARGET_BEHAVIORS: List[str] = [
+    "车道保持",
+    "贴边或侵入",
+    "切入",
+    "切出",
+    "横穿",
+    "逆向",
+    "左右转",
+    "掉头",
+    "临停",
+    "倒车",
+]
+
+URBAN_CITY_EGO_ACTIONS: List[str] = [
+    "安全接管",
+    "不安接管",
+    "合规接管",
+    "效率接管",
+    "导航接管",
+    "体验接管",
+    "无操作",
+]
+
+URBAN_CITY_TARGET_BEHAVIOR_DISABLED_TYPES = {"障碍物", "无目标"}
+
+CAMPUS_ROAD_TYPES: List[str] = [
+    "园区地面",
+    "园区地库",
+]
+
+CAMPUS_SCENE_TYPES: List[str] = [
+    "直道",
+    "弯道",
+    "左转",
+    "右转",
+    "闸机",
+    "掉头",
+    "进园区",
+    "出园区",
+    "泊入",
+    "泊出",
+]
+
+CAMPUS_PROBLEM_OPTIONS: Dict[str, List[str]] = {
+    "安全问题": [
+        "撞路沿/障碍物",
+        "不减速/制动不足",
+        "跟/停距离太近",
+        "逆向目标避让不足",
+        "路口挤压旁车",
+        "危险变道/绕行",
+    ],
+    "舒适问题": [
+        "制动力过大",
+        "加减速顿挫",
+        "异常减速",
+        "溜车",
+        "摆动/蛇形",
+        "路口路径不合理",
+        "预减速不足",
+    ],
+    "效率问题": [
+        "跟/停距离远",
+        "不加速/加速慢",
+        "未及时变道/绕行",
+        "行泊切换位置不合理",
+    ],
+    "合规问题": [
+        "进逆向车道",
+        "不居中/贴边",
+        "压线",
+        "不按导流/规定车道行驶",
+        "不礼让行人",
+    ],
+    "导航问题": [
+        "路口通行未跟导航",
+    ],
+    "其他": [
+        "激活升级失败/异常降级",
+        "转向灯问题",
+        "误/错触发提醒",
+        "漏触发提醒",
+        "行泊切换失败",
+        "车位激活失败",
+    ],
+    "goodcase": [
+        "衔接成功",
+        "闸机通行成功",
+        "泊入成功",
+        "泊出成功",
+        "场景记录",
+    ],
+}
+
+CAMPUS_TARGET_TYPES: List[str] = [
+    "小汽车",
+    "VRU",
+    "障碍物",
+    "其他",
+    "无",
+]
+
+CAMPUS_EGO_ACTIONS: List[str] = [
+    "安全接管",
+    "效率接管",
+    "合规接管",
+    "体验接管",
+    "导航接管",
+    "无接管",
+]
+
 
 class OptionButtonGroup(QWidget):
-    def __init__(self, title: str, options: List[str], columns: int = 3, button_height: int = 28) -> None:
+    selection_changed = pyqtSignal(str)
+
+    def __init__(
+        self,
+        title: str,
+        options: List[str],
+        columns: int = 3,
+        button_height: int = 28,
+        allow_empty: bool = False,
+        checked_by_default: bool = True,
+    ) -> None:
         super().__init__()
         self._buttons: List[QPushButton] = []
+        self._pressed_was_checked = False
+        self._allow_empty = allow_empty
         self._button_group = QButtonGroup(self)
         self._button_group.setExclusive(True)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
         box = QGroupBox(title)
+        box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         box.setStyleSheet("QGroupBox { font-weight: 600; margin-top: 6px; } QGroupBox::title { subcontrol-origin: margin; left: 8px; }")
         box_layout = QGridLayout(box)
         box_layout.setContentsMargins(8, 12, 8, 8)
@@ -96,11 +361,16 @@ class OptionButtonGroup(QWidget):
             col = index % columns
             box_layout.addWidget(button, row, col)
             self._button_group.addButton(button, index)
+            button.pressed.connect(lambda button=button: self._remember_pressed_state(button))
+            button.clicked.connect(lambda _checked, button=button: self._handle_button_clicked(button))
             self._buttons.append(button)
 
         layout.addWidget(box)
-        if self._buttons:
+        if self._buttons and checked_by_default:
             self._buttons[0].setChecked(True)
+        height = box.sizeHint().height()
+        box.setFixedHeight(height)
+        self.setFixedHeight(height)
 
     def current_text(self) -> str:
         button = self._button_group.checkedButton()
@@ -109,21 +379,49 @@ class OptionButtonGroup(QWidget):
         return str(button.property('raw_value') or '')
 
     def set_current_text(self, text: str) -> None:
+        if not text:
+            self.clear_selection()
+            return
         for button in self._buttons:
             if str(button.property('raw_value') or '') == text:
                 button.setChecked(True)
                 return
 
+    def clear_selection(self) -> None:
+        self._button_group.setExclusive(False)
+        for button in self._buttons:
+            button.setChecked(False)
+        self._button_group.setExclusive(True)
+
+    def _remember_pressed_state(self, button: QPushButton) -> None:
+        self._pressed_was_checked = button.isChecked()
+
+    def _handle_button_clicked(self, button: QPushButton) -> None:
+        if self._allow_empty and self._pressed_was_checked:
+            self._button_group.setExclusive(False)
+            button.setChecked(False)
+            self._button_group.setExclusive(True)
+        self.selection_changed.emit(self.current_text())
+
 
 class ProblemSelector(QWidget):
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        options_by_tab: Optional[Dict[str, List[str]]] = None,
+        group_columns: int = 2,
+        button_height: int = 28,
+        allow_empty: bool = False,
+        checked_by_default: bool = True,
+        title: str = "问题类型",
+    ) -> None:
         super().__init__()
         self._groups: Dict[str, OptionButtonGroup] = {}
         self._tab_keys: List[str] = []
+        options_by_tab = options_by_tab or PROBLEM_OPTIONS
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        box = QGroupBox("问题类型")
+        box = QGroupBox(title)
         box.setStyleSheet("QGroupBox { font-weight: 600; margin-top: 6px; } QGroupBox::title { subcontrol-origin: margin; left: 8px; }")
         box_layout = QVBoxLayout(box)
         box_layout.setContentsMargins(8, 12, 8, 8)
@@ -131,8 +429,15 @@ class ProblemSelector(QWidget):
 
         self.tab_widget = QTabWidget()
         self.tab_widget.setDocumentMode(True)
-        for tab_name, options in PROBLEM_OPTIONS.items():
-            group = OptionButtonGroup(zh(tab_name), options, columns=2, button_height=28)
+        for tab_name, options in options_by_tab.items():
+            group = OptionButtonGroup(
+                zh(tab_name),
+                options,
+                columns=group_columns,
+                button_height=button_height,
+                allow_empty=allow_empty,
+                checked_by_default=checked_by_default,
+            )
             self._groups[tab_name] = group
             self._tab_keys.append(tab_name)
             self.tab_widget.addTab(group, zh(tab_name))
@@ -146,7 +451,10 @@ class ProblemSelector(QWidget):
         return self._tab_keys[index]
 
     def current_problem_type(self) -> str:
-        return self._groups[self.current_problem_tab()].current_text()
+        tab_name = self.current_problem_tab()
+        if not tab_name:
+            return ""
+        return self._groups[tab_name].current_text()
 
     def set_problem(self, tab_name: str, problem_type: Optional[str] = None) -> None:
         for index, raw_name in enumerate(self._tab_keys):
@@ -157,12 +465,13 @@ class ProblemSelector(QWidget):
                 return
 
 
-class IssueEditorWidget(QWidget):
+class LegacyIssueEditorPanel(QWidget):
     def __init__(self) -> None:
         super().__init__()
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
+        layout.setSpacing(6)
+        layout.setAlignment(Qt.AlignTop)
 
         title = QLabel("问题打点")
         title.setStyleSheet("font-size: 15px; font-weight: 600;")
@@ -298,3 +607,1115 @@ class IssueEditorWidget(QWidget):
 
     def clear_comment(self) -> None:
         self.comment.clear()
+
+
+class UrbanCityIssueEditorPanel(QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        layout.setAlignment(Qt.AlignTop)
+
+        title = QLabel("行车城区测试打点")
+        title.setStyleSheet("font-size: 15px; font-weight: 600;")
+        layout.addWidget(title)
+
+        self.scene_type = OptionButtonGroup(
+            "场景类型",
+            URBAN_CITY_SCENE_TYPES,
+            columns=4,
+            button_height=22,
+            allow_empty=True,
+            checked_by_default=False,
+        )
+        layout.addWidget(self.scene_type)
+
+        self.problem_selector = ProblemSelector(
+            URBAN_CITY_PROBLEM_OPTIONS,
+            group_columns=3,
+            button_height=22,
+            allow_empty=True,
+            checked_by_default=False,
+            title="问题描述",
+        )
+        layout.addWidget(self.problem_selector)
+
+        self.ego_condition = OptionButtonGroup(
+            "本车工况",
+            URBAN_CITY_EGO_CONDITIONS,
+            columns=4,
+            button_height=22,
+            allow_empty=True,
+            checked_by_default=False,
+        )
+        layout.addWidget(self.ego_condition)
+
+        self.target_type = OptionButtonGroup(
+            "目标类型",
+            URBAN_CITY_TARGET_TYPES,
+            columns=3,
+            button_height=22,
+            allow_empty=True,
+            checked_by_default=False,
+        )
+        self.target_type.selection_changed.connect(self._refresh_target_behavior_enabled)
+        layout.addWidget(self.target_type)
+
+        self.target_behavior = OptionButtonGroup(
+            "目标行为",
+            URBAN_CITY_TARGET_BEHAVIORS,
+            columns=5,
+            button_height=22,
+            allow_empty=True,
+            checked_by_default=False,
+        )
+        layout.addWidget(self.target_behavior)
+
+        self.ego_action = OptionButtonGroup(
+            "本车操作",
+            URBAN_CITY_EGO_ACTIONS,
+            columns=4,
+            button_height=22,
+            allow_empty=True,
+            checked_by_default=False,
+        )
+        layout.addWidget(self.ego_action)
+
+        comment_box = QGroupBox("备注")
+        comment_box.setStyleSheet("QGroupBox { font-weight: 600; margin-top: 6px; } QGroupBox::title { subcontrol-origin: margin; left: 8px; }")
+        comment_layout = QVBoxLayout(comment_box)
+        comment_layout.setContentsMargins(8, 12, 8, 6)
+        self.comment = QTextEdit()
+        self.comment.setPlaceholderText("可选备注")
+        self.comment.setFixedHeight(34)
+        comment_layout.addWidget(self.comment)
+        layout.addWidget(comment_box)
+
+        footer = QHBoxLayout()
+        self.issue_count_label = QLabel("问题数量：0")
+        footer.addWidget(self.issue_count_label)
+        footer.addStretch(1)
+        layout.addLayout(footer)
+
+        self.add_issue_btn = QPushButton("创建打点")
+        self.add_issue_btn.setMinimumHeight(34)
+        self.add_issue_btn.setStyleSheet(
+            "QPushButton { background: #d95550; color: white; border: none; border-radius: 6px; font-weight: 600; }"
+            "QPushButton:pressed { background: #bf4b47; }"
+        )
+        layout.addWidget(self.add_issue_btn)
+        layout.addStretch(1)
+        self._refresh_target_behavior_enabled("")
+
+    def _refresh_target_behavior_enabled(self, target_type: str) -> None:
+        disabled = target_type in URBAN_CITY_TARGET_BEHAVIOR_DISABLED_TYPES
+        if disabled:
+            self.target_behavior.clear_selection()
+        self.target_behavior.setEnabled(not disabled)
+
+    def _validate_required_fields(self) -> None:
+        missing: List[str] = []
+        if not self.scene_type.current_text():
+            missing.append("场景类型")
+        if not self.problem_selector.current_problem_type():
+            missing.append("问题描述")
+        if not self.ego_condition.current_text():
+            missing.append("本车工况")
+        target_type = self.target_type.current_text()
+        if not target_type:
+            missing.append("目标类型")
+        if target_type and target_type not in URBAN_CITY_TARGET_BEHAVIOR_DISABLED_TYPES and not self.target_behavior.current_text():
+            missing.append("目标行为")
+        if not self.ego_action.current_text():
+            missing.append("本车操作")
+        if missing:
+            raise ValueError("请先选择：" + "、".join(missing))
+
+    def get_issue_payload(self) -> Dict[str, str]:
+        self._validate_required_fields()
+        target_type = self.target_type.current_text()
+        target_behavior = ""
+        if target_type not in URBAN_CITY_TARGET_BEHAVIOR_DISABLED_TYPES:
+            target_behavior = self.target_behavior.current_text()
+        return {
+            "road_type": "",
+            "scene_type": self.scene_type.current_text(),
+            "problem_tab": self.problem_selector.current_problem_tab(),
+            "problem_type": self.problem_selector.current_problem_type(),
+            "ego_condition": self.ego_condition.current_text(),
+            "target_type": target_type,
+            "target_behavior": target_behavior,
+            "ego_action": self.ego_action.current_text(),
+            "case_id": "",
+            "comment": self.comment.toPlainText().strip(),
+            "marking_schema": URBAN_CITY_MARKING_SCHEMA,
+        }
+
+    def set_issue_count(self, count: int) -> None:
+        self.issue_count_label.setText(f"问题数量：{count}")
+
+    def clear_comment(self) -> None:
+        self.comment.clear()
+
+
+class CampusRoadIssueEditorPanel(QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        layout.setAlignment(Qt.AlignTop)
+
+        title = QLabel("园区路试打点")
+        title.setStyleSheet("font-size: 15px; font-weight: 600;")
+        layout.addWidget(title)
+
+        self.road_type = OptionButtonGroup(
+            "道路类型",
+            CAMPUS_ROAD_TYPES,
+            columns=2,
+            button_height=24,
+        )
+        layout.addWidget(self.road_type)
+
+        self.scene_type = OptionButtonGroup(
+            "场景类型",
+            CAMPUS_SCENE_TYPES,
+            columns=5,
+            button_height=24,
+        )
+        layout.addWidget(self.scene_type)
+
+        self.problem_selector = ProblemSelector(
+            CAMPUS_PROBLEM_OPTIONS,
+            group_columns=3,
+            button_height=24,
+        )
+        layout.addWidget(self.problem_selector)
+
+        self.target_type = OptionButtonGroup(
+            "目标类型",
+            CAMPUS_TARGET_TYPES,
+            columns=5,
+            button_height=24,
+        )
+        layout.addWidget(self.target_type)
+
+        self.ego_action = OptionButtonGroup(
+            "本车操作",
+            CAMPUS_EGO_ACTIONS,
+            columns=3,
+            button_height=24,
+        )
+        layout.addWidget(self.ego_action)
+
+        comment_box = QGroupBox("备注")
+        comment_box.setStyleSheet("QGroupBox { font-weight: 600; margin-top: 6px; } QGroupBox::title { subcontrol-origin: margin; left: 8px; }")
+        comment_layout = QVBoxLayout(comment_box)
+        comment_layout.setContentsMargins(8, 12, 8, 6)
+        self.comment = QTextEdit()
+        self.comment.setPlaceholderText("可选备注")
+        self.comment.setFixedHeight(34)
+        comment_layout.addWidget(self.comment)
+        layout.addWidget(comment_box)
+
+        footer = QHBoxLayout()
+        self.issue_count_label = QLabel("问题数量：0")
+        footer.addWidget(self.issue_count_label)
+        footer.addStretch(1)
+        layout.addLayout(footer)
+
+        self.add_issue_btn = QPushButton("创建打点")
+        self.add_issue_btn.setMinimumHeight(34)
+        self.add_issue_btn.setStyleSheet(
+            "QPushButton { background: #d95550; color: white; border: none; border-radius: 6px; font-weight: 600; }"
+            "QPushButton:pressed { background: #bf4b47; }"
+        )
+        layout.addWidget(self.add_issue_btn)
+        layout.addStretch(1)
+
+    def get_issue_payload(self) -> Dict[str, str]:
+        return {
+            "road_type": self.road_type.current_text(),
+            "scene_type": self.scene_type.current_text(),
+            "problem_tab": self.problem_selector.current_problem_tab(),
+            "problem_type": self.problem_selector.current_problem_type(),
+            "target_type": self.target_type.current_text(),
+            "ego_action": self.ego_action.current_text(),
+            "case_id": "",
+            "comment": self.comment.toPlainText().strip(),
+            "marking_schema": CAMPUS_ROAD_MARKING_SCHEMA,
+        }
+
+    def set_issue_count(self, count: int) -> None:
+        self.issue_count_label.setText(f"问题数量：{count}")
+
+    def clear_comment(self) -> None:
+        self.comment.clear()
+
+
+class CampusFieldIssueEditorPanel(QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        self._case_catalog = load_campus_field_case_id_catalog()
+        self.case_id_counts: Dict[str, int] = {}
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        layout.setAlignment(Qt.AlignTop)
+
+        title = QLabel("园区场地测试打点")
+        title.setStyleSheet("font-size: 15px; font-weight: 600;")
+        layout.addWidget(title)
+
+        case_box = QGroupBox("caseID")
+        case_box.setStyleSheet("QGroupBox { font-weight: 600; margin-top: 6px; } QGroupBox::title { subcontrol-origin: margin; left: 8px; }")
+        case_layout = QVBoxLayout(case_box)
+        case_layout.setContentsMargins(8, 12, 8, 8)
+        case_layout.setSpacing(6)
+
+        self.case_id = QLineEdit()
+        self.case_id.setPlaceholderText("输入或搜索附件中的 Case ID")
+        self.case_id_model = QStringListModel(self)
+        completer = QCompleter(self.case_id_model, self.case_id)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)
+        completer.setCompletionMode(QCompleter.PopupCompletion)
+        self.case_id.setCompleter(completer)
+        self.case_id_completer = completer
+        self.case_id.textEdited.connect(self._refresh_case_id_options)
+        self.case_id.textChanged.connect(self._refresh_case_detail)
+        self.case_id.textChanged.connect(self._refresh_case_id_count_label)
+        case_layout.addWidget(self.case_id)
+
+        self.case_detail = QTextEdit()
+        self.case_detail.setReadOnly(True)
+        self.case_detail.setMinimumHeight(340)
+        self.case_detail.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.case_detail.setPlaceholderText("选择 caseID 后显示测试内容")
+        case_layout.addWidget(self.case_detail)
+        layout.addWidget(case_box)
+
+        self.test_result = OptionButtonGroup(
+            "测试结果",
+            ["通过", "失败"],
+            columns=2,
+            button_height=30,
+        )
+        layout.addWidget(self.test_result)
+
+        count_box = QGroupBox("测试次数")
+        count_box.setStyleSheet("QGroupBox { font-weight: 600; margin-top: 6px; } QGroupBox::title { subcontrol-origin: margin; left: 8px; }")
+        count_layout = QVBoxLayout(count_box)
+        count_layout.setContentsMargins(8, 12, 8, 8)
+        self.case_id_count_label = QLabel("当前 caseID 测试次数：0")
+        count_layout.addWidget(self.case_id_count_label)
+        layout.addWidget(count_box)
+
+        comment_box = QGroupBox("备注")
+        comment_box.setStyleSheet("QGroupBox { font-weight: 600; margin-top: 6px; } QGroupBox::title { subcontrol-origin: margin; left: 8px; }")
+        comment_layout = QVBoxLayout(comment_box)
+        comment_layout.setContentsMargins(8, 12, 8, 8)
+        self.comment = QTextEdit()
+        self.comment.setPlaceholderText("自由填写备注")
+        self.comment.setFixedHeight(72)
+        comment_layout.addWidget(self.comment)
+        layout.addWidget(comment_box)
+
+        self.add_issue_btn = QPushButton("创建打点")
+        self.add_issue_btn.setMinimumHeight(34)
+        self.add_issue_btn.setStyleSheet(
+            "QPushButton { background: #d95550; color: white; border: none; border-radius: 6px; font-weight: 600; }"
+            "QPushButton:pressed { background: #bf4b47; }"
+        )
+        layout.addWidget(self.add_issue_btn)
+        layout.addStretch(1)
+
+        self._refresh_case_id_options()
+        self._refresh_case_detail()
+
+    def _refresh_case_id_options(self, _value: str = "") -> None:
+        text = self.case_id.text().strip()
+        options = self._case_catalog.search(text, limit=200)
+        self.case_id_model.setStringList(options)
+        if text and options:
+            self.case_id_completer.complete()
+
+    def _refresh_case_detail(self, _value: str = "") -> None:
+        case_id = self.case_id.text().strip()
+        if not case_id:
+            self.case_detail.clear()
+            return
+        record = self._case_catalog.get(case_id)
+        if record is None:
+            self.case_detail.setPlainText("未匹配到附件中的 Case ID")
+            return
+        self.case_detail.setPlainText(record.detail_text())
+
+    def _refresh_case_id_count_label(self) -> None:
+        case_id = self.case_id.text().strip()
+        count = self.case_id_counts.get(case_id, 0) if case_id else 0
+        self.case_id_count_label.setText(f"当前 caseID 测试次数：{count}")
+
+    def get_issue_payload(self) -> Dict[str, str]:
+        result = self.test_result.current_text()
+        return {
+            "road_type": "",
+            "scene_type": "",
+            "problem_tab": "Campus field",
+            "problem_type": CAMPUS_FIELD_TEST_FUNCTION,
+            "target_type": "",
+            "ego_action": result,
+            "case_id": self.case_id.text().strip(),
+            "comment": self.comment.toPlainText().strip(),
+            "marking_schema": CAMPUS_FIELD_MARKING_SCHEMA,
+            "test_result": result,
+        }
+
+    def set_issue_count(self, count: int) -> None:
+        self._refresh_case_id_count_label()
+
+    def set_case_id_counts(self, counts: Dict[str, int]) -> None:
+        self.case_id_counts = counts
+        self._refresh_case_id_count_label()
+
+    def clear_comment(self) -> None:
+        self.comment.clear()
+
+
+class FunctionCheckIssueEditorPanel(QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        self._case_catalog = load_function_check_case_id_catalog()
+        self.case_id_counts: Dict[str, int] = {}
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        layout.setAlignment(Qt.AlignTop)
+
+        title = QLabel("行车功能点检打点")
+        title.setStyleSheet("font-size: 15px; font-weight: 600;")
+        layout.addWidget(title)
+
+        case_box = QGroupBox("caseID")
+        case_box.setStyleSheet("QGroupBox { font-weight: 600; margin-top: 6px; } QGroupBox::title { subcontrol-origin: margin; left: 8px; }")
+        case_layout = QVBoxLayout(case_box)
+        case_layout.setContentsMargins(8, 12, 8, 8)
+        case_layout.setSpacing(6)
+
+        self.case_id = QLineEdit()
+        self.case_id.setPlaceholderText("输入或搜索附件中的 Case ID")
+        self.case_id_model = QStringListModel(self)
+        completer = QCompleter(self.case_id_model, self.case_id)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)
+        completer.setCompletionMode(QCompleter.PopupCompletion)
+        self.case_id.setCompleter(completer)
+        self.case_id_completer = completer
+        self.case_id.textEdited.connect(self._refresh_case_id_options)
+        self.case_id.textChanged.connect(self._refresh_case_detail)
+        self.case_id.textChanged.connect(self._refresh_case_id_count_label)
+        case_layout.addWidget(self.case_id)
+
+        self.case_detail = QTextEdit()
+        self.case_detail.setReadOnly(True)
+        self.case_detail.setMinimumHeight(340)
+        self.case_detail.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.case_detail.setPlaceholderText("选择 caseID 后显示测试内容")
+        case_layout.addWidget(self.case_detail)
+        layout.addWidget(case_box)
+
+        self.test_result = OptionButtonGroup(
+            "测试结果",
+            ["通过", "失败"],
+            columns=2,
+            button_height=30,
+        )
+        layout.addWidget(self.test_result)
+
+        count_box = QGroupBox("测试次数")
+        count_box.setStyleSheet("QGroupBox { font-weight: 600; margin-top: 6px; } QGroupBox::title { subcontrol-origin: margin; left: 8px; }")
+        count_layout = QVBoxLayout(count_box)
+        count_layout.setContentsMargins(8, 12, 8, 8)
+        self.case_id_count_label = QLabel("当前 caseID 测试次数：0")
+        count_layout.addWidget(self.case_id_count_label)
+        layout.addWidget(count_box)
+
+        comment_box = QGroupBox("备注")
+        comment_box.setStyleSheet("QGroupBox { font-weight: 600; margin-top: 6px; } QGroupBox::title { subcontrol-origin: margin; left: 8px; }")
+        comment_layout = QVBoxLayout(comment_box)
+        comment_layout.setContentsMargins(8, 12, 8, 8)
+        self.comment = QTextEdit()
+        self.comment.setPlaceholderText("自由填写备注")
+        self.comment.setFixedHeight(72)
+        comment_layout.addWidget(self.comment)
+        layout.addWidget(comment_box)
+
+        self.add_issue_btn = QPushButton("创建打点")
+        self.add_issue_btn.setMinimumHeight(34)
+        self.add_issue_btn.setStyleSheet(
+            "QPushButton { background: #d95550; color: white; border: none; border-radius: 6px; font-weight: 600; }"
+            "QPushButton:pressed { background: #bf4b47; }"
+        )
+        layout.addWidget(self.add_issue_btn)
+        layout.addStretch(1)
+
+        self._refresh_case_id_options()
+        self._refresh_case_detail()
+
+    def _refresh_case_id_options(self, _value: str = "") -> None:
+        text = self.case_id.text().strip()
+        options = self._case_catalog.search(text, limit=200)
+        self.case_id_model.setStringList(options)
+        if text and options:
+            self.case_id_completer.complete()
+
+    def _refresh_case_detail(self, _value: str = "") -> None:
+        case_id = self.case_id.text().strip()
+        if not case_id:
+            self.case_detail.clear()
+            return
+        record = self._case_catalog.get(case_id)
+        if record is None:
+            self.case_detail.setPlainText("未匹配到附件中的 Case ID")
+            return
+        self.case_detail.setPlainText(record.detail_text())
+
+    def _refresh_case_id_count_label(self) -> None:
+        case_id = self.case_id.text().strip()
+        count = self.case_id_counts.get(case_id, 0) if case_id else 0
+        self.case_id_count_label.setText(f"当前 caseID 测试次数：{count}")
+
+    def get_issue_payload(self) -> Dict[str, str]:
+        case_id = self.case_id.text().strip()
+        if not case_id or self._case_catalog.get(case_id) is None:
+            raise ValueError("请选择附件中存在的 Case ID")
+        result = self.test_result.current_text()
+        return {
+            "road_type": "",
+            "scene_type": "",
+            "problem_tab": "Driving function check",
+            "problem_type": FUNCTION_CHECK_TEST_FUNCTION,
+            "target_type": "",
+            "ego_action": result,
+            "case_id": case_id,
+            "comment": self.comment.toPlainText().strip(),
+            "marking_schema": FUNCTION_CHECK_MARKING_SCHEMA,
+            "test_result": result,
+        }
+
+    def set_issue_count(self, count: int) -> None:
+        self._refresh_case_id_count_label()
+
+    def set_case_id_counts(self, counts: Dict[str, int]) -> None:
+        self.case_id_counts = counts
+        self._refresh_case_id_count_label()
+
+    def clear_comment(self) -> None:
+        self.comment.clear()
+
+
+class ParkingIssueEditorPanel(QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        self._case_catalog = load_parking_case_id_catalog()
+        self.case_id_counts: Dict[str, int] = {}
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        layout.setAlignment(Qt.AlignTop)
+
+        title = QLabel("泊车测试打点")
+        title.setStyleSheet("font-size: 15px; font-weight: 600;")
+        layout.addWidget(title)
+
+        self.subject_scene = OptionButtonGroup(
+            "科目场景",
+            list(PARKING_SUBJECT_SCENES),
+            columns=4,
+            button_height=22,
+        )
+        self.subject_scene.selection_changed.connect(self._handle_subject_scene_changed)
+        layout.addWidget(self.subject_scene)
+
+        case_box = QGroupBox("case ID")
+        case_box.setStyleSheet("QGroupBox { font-weight: 600; margin-top: 6px; } QGroupBox::title { subcontrol-origin: margin; left: 8px; }")
+        case_layout = QVBoxLayout(case_box)
+        case_layout.setContentsMargins(8, 12, 8, 6)
+        case_layout.setSpacing(4)
+
+        self.case_id = QLineEdit()
+        self.case_id.setPlaceholderText("输入或搜索当前科目场景下的 case ID")
+        self.case_id_model = QStringListModel(self)
+        completer = QCompleter(self.case_id_model, self.case_id)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)
+        completer.setCompletionMode(QCompleter.PopupCompletion)
+        self.case_id.setCompleter(completer)
+        self.case_id_completer = completer
+        self.case_id.textEdited.connect(self._refresh_case_id_options)
+        self.case_id.textChanged.connect(self._refresh_case_detail)
+        self.case_id.textChanged.connect(self._refresh_case_id_count_label)
+        case_layout.addWidget(self.case_id)
+
+        self.case_detail = QTextEdit()
+        self.case_detail.setReadOnly(True)
+        self.case_detail.setFixedHeight(276)
+        self.case_detail.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.case_detail.setPlaceholderText("选择 case ID 后显示测试内容")
+        case_layout.addWidget(self.case_detail)
+        layout.addWidget(case_box)
+
+        self.parking_space_category = OptionButtonGroup(
+            "车位分类",
+            ["地面车位", "地库车位"],
+            columns=2,
+            button_height=22,
+        )
+        layout.addWidget(self.parking_space_category)
+
+        result_row_1 = QHBoxLayout()
+        result_row_1.setSpacing(6)
+        self.recognition_result = self._result_group("识别结果", ["成功", "失败"])
+        self.park_in_result = self._result_group("泊入结果", ["成功", "失败"])
+        result_row_1.addWidget(self.recognition_result, 1)
+        result_row_1.addWidget(self.park_in_result, 1)
+        layout.addLayout(result_row_1)
+
+        result_row_2 = QHBoxLayout()
+        result_row_2.setSpacing(6)
+        self.park_out_result = self._result_group("泊出结果", ["成功", "失败"])
+        self.obstacle_result = self._result_group("避障结果", ["成功", "失败"])
+        result_row_2.addWidget(self.park_out_result, 1)
+        result_row_2.addWidget(self.obstacle_result, 1)
+        layout.addLayout(result_row_2)
+
+        result_row_3 = QHBoxLayout()
+        result_row_3.setSpacing(6)
+        self.pose_result = self._result_group("位姿结果", ["合格", "不合格"])
+        self.jerk_result = self._result_group("顿挫", ["合格", "不合格"])
+        result_row_3.addWidget(self.pose_result, 1)
+        result_row_3.addWidget(self.jerk_result, 1)
+        layout.addLayout(result_row_3)
+
+        metrics_box = QGroupBox("泊车数据")
+        metrics_box.setStyleSheet("QGroupBox { font-weight: 600; margin-top: 6px; } QGroupBox::title { subcontrol-origin: margin; left: 8px; }")
+        metrics_layout = QGridLayout(metrics_box)
+        metrics_layout.setContentsMargins(8, 12, 8, 6)
+        metrics_layout.setHorizontalSpacing(6)
+        metrics_layout.setVerticalSpacing(4)
+        self.parking_time_sec = QLineEdit()
+        self.parking_time_sec.setPlaceholderText("泊车时间")
+        self.maneuver_count = QLineEdit()
+        self.maneuver_count.setPlaceholderText("揉库次数")
+        metrics_layout.addWidget(QLabel("泊车时间"), 0, 0)
+        metrics_layout.addWidget(self.parking_time_sec, 0, 1)
+        metrics_layout.addWidget(QLabel("s"), 0, 2)
+        metrics_layout.addWidget(QLabel("揉库次数"), 0, 3)
+        metrics_layout.addWidget(self.maneuver_count, 0, 4)
+        metrics_layout.addWidget(QLabel("次"), 0, 5)
+        layout.addWidget(metrics_box)
+
+        comment_box = QGroupBox("备注")
+        comment_box.setStyleSheet("QGroupBox { font-weight: 600; margin-top: 6px; } QGroupBox::title { subcontrol-origin: margin; left: 8px; }")
+        comment_layout = QVBoxLayout(comment_box)
+        comment_layout.setContentsMargins(8, 12, 8, 6)
+        self.comment = QTextEdit()
+        self.comment.setPlaceholderText("自由填写备注")
+        self.comment.setFixedHeight(46)
+        comment_layout.addWidget(self.comment)
+        layout.addWidget(comment_box)
+
+        footer = QHBoxLayout()
+        self.case_id_count_label = QLabel("当前 case ID 测试次数：0")
+        footer.addWidget(self.case_id_count_label)
+        footer.addStretch(1)
+        layout.addLayout(footer)
+
+        self.add_issue_btn = QPushButton("创建打点")
+        self.add_issue_btn.setMinimumHeight(32)
+        self.add_issue_btn.setStyleSheet(
+            "QPushButton { background: #d95550; color: white; border: none; border-radius: 6px; font-weight: 600; }"
+            "QPushButton:pressed { background: #bf4b47; }"
+        )
+        layout.addWidget(self.add_issue_btn)
+        layout.addStretch(1)
+
+        self._refresh_case_id_options()
+        self._refresh_case_detail()
+
+    def _result_group(self, title: str, options: List[str]) -> OptionButtonGroup:
+        return OptionButtonGroup(
+            title,
+            options,
+            columns=2,
+            button_height=22,
+            allow_empty=True,
+            checked_by_default=False,
+        )
+
+    def _handle_subject_scene_changed(self, _value: str = "") -> None:
+        self.case_id.clear()
+        self._refresh_case_id_options()
+        self._refresh_case_detail()
+        self._refresh_case_id_count_label()
+
+    def _refresh_case_id_options(self, _value: str = "") -> None:
+        text = self.case_id.text().strip()
+        options = self._case_catalog.search(self.subject_scene.current_text(), text, limit=200)
+        self.case_id_model.setStringList(options)
+        if text and options:
+            self.case_id_completer.complete()
+
+    def _refresh_case_detail(self, _value: str = "") -> None:
+        case_id = self.case_id.text().strip()
+        if not case_id:
+            self.case_detail.clear()
+            return
+        record = self._case_catalog.get(case_id)
+        if record is None:
+            self.case_detail.setPlainText("未匹配到附件中的 Case ID")
+            return
+        self.case_detail.setPlainText(record.detail_text())
+
+    def _refresh_case_id_count_label(self) -> None:
+        case_id = self.case_id.text().strip()
+        count = self.case_id_counts.get(case_id, 0) if case_id else 0
+        self.case_id_count_label.setText(f"当前 case ID 测试次数：{count}")
+
+    def get_issue_payload(self) -> Dict[str, str]:
+        subject_scene = self.subject_scene.current_text()
+        space_category = self.parking_space_category.current_text()
+        return {
+            "road_type": space_category,
+            "scene_type": subject_scene,
+            "problem_tab": "Parking",
+            "problem_type": subject_scene,
+            "target_type": "",
+            "ego_action": self.park_in_result.current_text() or self.park_out_result.current_text(),
+            "case_id": self.case_id.text().strip(),
+            "comment": self.comment.toPlainText().strip(),
+            "marking_schema": PARKING_MARKING_SCHEMA,
+            "parking_subject_scene": subject_scene,
+            "parking_space_category": space_category,
+            "recognition_result": self.recognition_result.current_text(),
+            "park_in_result": self.park_in_result.current_text(),
+            "park_out_result": self.park_out_result.current_text(),
+            "obstacle_result": self.obstacle_result.current_text(),
+            "pose_result": self.pose_result.current_text(),
+            "jerk_result": self.jerk_result.current_text(),
+            "parking_time_sec": self.parking_time_sec.text().strip(),
+            "maneuver_count": self.maneuver_count.text().strip(),
+        }
+
+    def set_issue_count(self, count: int) -> None:
+        self._refresh_case_id_count_label()
+
+    def set_case_id_counts(self, counts: Dict[str, int]) -> None:
+        self.case_id_counts = counts
+        self._refresh_case_id_count_label()
+
+    def clear_comment(self) -> None:
+        self.comment.clear()
+
+
+class HighwayIssueEditorPanel(QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        self._catalog = load_highway_kpi_tag_catalog()
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        layout.setAlignment(Qt.AlignTop)
+
+        title = QLabel("高速测试打点")
+        title.setStyleSheet("font-size: 15px; font-weight: 600;")
+        layout.addWidget(title)
+
+        self.test_scene = OptionButtonGroup(
+            "测试场景",
+            list(self._catalog.test_scenes),
+            columns=4,
+            button_height=24,
+        )
+        layout.addWidget(self.test_scene)
+
+        self.problem_description = OptionButtonGroup(
+            "问题描述",
+            list(self._catalog.problem_descriptions),
+            columns=3,
+            button_height=24,
+        )
+        layout.addWidget(self.problem_description)
+
+        self.ego_action = OptionButtonGroup(
+            "本车操作",
+            list(self._catalog.ego_actions),
+            columns=3,
+            button_height=24,
+        )
+        layout.addWidget(self.ego_action)
+
+        self.severity_level = OptionButtonGroup(
+            "严重程度",
+            list(self._catalog.severity_levels),
+            columns=5,
+            button_height=24,
+        )
+        layout.addWidget(self.severity_level)
+
+        comment_box = QGroupBox("备注")
+        comment_box.setStyleSheet("QGroupBox { font-weight: 600; margin-top: 6px; } QGroupBox::title { subcontrol-origin: margin; left: 8px; }")
+        comment_layout = QVBoxLayout(comment_box)
+        comment_layout.setContentsMargins(8, 12, 8, 6)
+        self.comment = QTextEdit()
+        self.comment.setPlaceholderText("可选备注")
+        self.comment.setFixedHeight(40)
+        comment_layout.addWidget(self.comment)
+        layout.addWidget(comment_box)
+
+        footer = QHBoxLayout()
+        self.issue_count_label = QLabel("问题数量：0")
+        footer.addWidget(self.issue_count_label)
+        footer.addStretch(1)
+        layout.addLayout(footer)
+
+        self.add_issue_btn = QPushButton("创建打点")
+        self.add_issue_btn.setMinimumHeight(34)
+        self.add_issue_btn.setStyleSheet(
+            "QPushButton { background: #d95550; color: white; border: none; border-radius: 6px; font-weight: 600; }"
+            "QPushButton:pressed { background: #bf4b47; }"
+        )
+        layout.addWidget(self.add_issue_btn)
+        layout.addStretch(1)
+
+    def get_issue_payload(self) -> Dict[str, str]:
+        return {
+            "road_type": "",
+            "scene_type": self.test_scene.current_text(),
+            "problem_tab": HIGHWAY_PROBLEM_TAB,
+            "problem_type": self.problem_description.current_text(),
+            "target_type": "",
+            "ego_action": self.ego_action.current_text(),
+            "case_id": "",
+            "comment": self.comment.toPlainText().strip(),
+            "marking_schema": HIGHWAY_MARKING_SCHEMA,
+            "severity_level": self.severity_level.current_text(),
+        }
+
+    def set_issue_count(self, count: int) -> None:
+        self.issue_count_label.setText(f"问题数量：{count}")
+
+    def clear_comment(self) -> None:
+        self.comment.clear()
+
+
+class ActiveSafetyIssueEditorPanel(QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        self._case_catalog = load_active_safety_case_id_catalog()
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
+        title = QLabel("主动安全打点")
+        title.setStyleSheet("font-size: 15px; font-weight: 600;")
+        title.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        title.setFixedHeight(title.sizeHint().height())
+        layout.addWidget(title)
+
+        self.function_group = OptionButtonGroup(
+            "功能",
+            list(ACTIVE_SAFETY_FUNCTIONS),
+            columns=4,
+            button_height=28,
+        )
+        self.function_group.selection_changed.connect(self._refresh_case_id_options)
+        layout.addWidget(self.function_group)
+
+        mode_box = QGroupBox("场测 / 路试")
+        mode_box.setStyleSheet("QGroupBox { font-weight: 600; margin-top: 6px; } QGroupBox::title { subcontrol-origin: margin; left: 8px; }")
+        mode_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        mode_layout = QVBoxLayout(mode_box)
+        mode_layout.setContentsMargins(8, 12, 8, 6)
+        mode_layout.setSpacing(4)
+
+        self.mode_tabs = QTabWidget()
+        self.mode_tabs.setDocumentMode(True)
+        self.mode_tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.mode_tabs.addTab(self._build_field_test_tab(), "场测")
+        self.mode_tabs.addTab(self._build_road_test_tab(), "路试")
+        mode_layout.addWidget(self.mode_tabs)
+        self.mode_tabs.setFixedHeight(self.mode_tabs.sizeHint().height())
+        mode_box.setFixedHeight(mode_box.sizeHint().height())
+        layout.addWidget(mode_box)
+
+        comment_box = QGroupBox("备注")
+        comment_box.setStyleSheet("QGroupBox { font-weight: 600; margin-top: 6px; } QGroupBox::title { subcontrol-origin: margin; left: 8px; }")
+        comment_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        comment_layout = QVBoxLayout(comment_box)
+        comment_layout.setContentsMargins(8, 12, 8, 6)
+        comment_layout.setSpacing(0)
+        self.comment = QTextEdit()
+        self.comment.setPlaceholderText("可选备注")
+        self.comment.setFixedHeight(self.comment.fontMetrics().lineSpacing() * 5 + 18)
+        comment_layout.addWidget(self.comment)
+        comment_box.setFixedHeight(comment_box.sizeHint().height())
+        layout.addWidget(comment_box)
+
+        footer = QHBoxLayout()
+        self.case_id_counts: Dict[str, int] = {}
+        self.issue_count_label = QLabel("当前 case ID 测试次数：0")
+        self.issue_count_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.issue_count_label.setFixedHeight(self.issue_count_label.sizeHint().height())
+        footer.addWidget(self.issue_count_label)
+        footer.addStretch(1)
+        layout.addLayout(footer)
+
+        self.add_issue_btn = QPushButton("创建打点")
+        self.add_issue_btn.setMinimumHeight(34)
+        self.add_issue_btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.add_issue_btn.setStyleSheet(
+            "QPushButton { background: #d95550; color: white; border: none; border-radius: 6px; font-weight: 600; }"
+            "QPushButton:pressed { background: #bf4b47; }"
+        )
+        layout.addWidget(self.add_issue_btn)
+        layout.addStretch(1)
+
+        self._refresh_case_id_options()
+
+    def _build_field_test_tab(self) -> QWidget:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        layout.setAlignment(Qt.AlignTop)
+
+        self.case_id = QLineEdit()
+        self.case_id.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.case_id.setPlaceholderText("输入 AEB/RAEB 等搜索 case ID")
+        self.case_id_model = QStringListModel(self)
+        completer = QCompleter(self.case_id_model, self.case_id)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)
+        completer.setCompletionMode(QCompleter.PopupCompletion)
+        self.case_id.setCompleter(completer)
+        self.case_id_completer = completer
+        self.case_id.textEdited.connect(self._refresh_case_id_options)
+        self.case_id.textChanged.connect(self._refresh_case_id_count_label)
+        layout.addWidget(QLabel("case ID"))
+        layout.addWidget(self.case_id)
+
+        speed_row = QHBoxLayout()
+        self.speed_kph = QLineEdit()
+        self.speed_kph.setPlaceholderText("速度")
+        speed_row.addWidget(QLabel("速度"))
+        speed_row.addWidget(self.speed_kph, 1)
+        speed_row.addWidget(QLabel("kph"))
+        layout.addLayout(speed_row)
+
+        self.takeover_result = OptionButtonGroup(
+            "测试结果",
+            ["pass", "fail"],
+            columns=2,
+            button_height=28,
+        )
+        layout.addWidget(self.takeover_result)
+        return tab
+
+    def _build_road_test_tab(self) -> QWidget:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        layout.setAlignment(Qt.AlignTop)
+        self.road_test_result = OptionButtonGroup(
+            "结果",
+            ["正触发", "误触发", "漏触发"],
+            columns=1,
+            button_height=28,
+        )
+        layout.addWidget(self.road_test_result)
+        return tab
+
+    def _refresh_case_id_options(self, _value: str = "") -> None:
+        text = self.case_id.text().strip() if hasattr(self, "case_id") else ""
+        function_name = self.function_group.current_text()
+        options = self._case_catalog.search(function_name, text, limit=200)
+        self.case_id_model.setStringList(options)
+        if text and options:
+            self.case_id_completer.complete()
+        self._refresh_case_id_count_label()
+
+    def _refresh_case_id_count_label(self) -> None:
+        case_id = self.case_id.text().strip()
+        count = self.case_id_counts.get(case_id, 0) if case_id else 0
+        self.issue_count_label.setText(f"当前 case ID 测试次数：{count}")
+
+    def get_issue_payload(self) -> Dict[str, str]:
+        function_name = self.function_group.current_text()
+        is_field_test = self.mode_tabs.currentIndex() == 0
+        mode = "场测" if is_field_test else "路试"
+        case_id = self.case_id.text().strip() if is_field_test else ""
+        speed_kph = self.speed_kph.text().strip() if is_field_test else ""
+        takeover_result = self.takeover_result.current_text() if is_field_test else ""
+        road_test_result = self.road_test_result.current_text() if not is_field_test else ""
+        result_text = takeover_result or road_test_result
+        return {
+            "road_type": "",
+            "scene_type": "",
+            "problem_tab": "Active safety",
+            "problem_type": function_name,
+            "target_type": "",
+            "ego_action": result_text,
+            "case_id": case_id,
+            "comment": self.comment.toPlainText().strip(),
+            "marking_schema": "active_safety",
+            "active_safety_function": function_name,
+            "active_safety_mode": mode,
+            "speed_kph": speed_kph,
+            "takeover_result": takeover_result,
+            "road_test_result": road_test_result,
+        }
+
+    def set_issue_count(self, count: int) -> None:
+        self._refresh_case_id_count_label()
+
+    def set_case_id_counts(self, counts: Dict[str, int]) -> None:
+        self.case_id_counts = counts
+        self._refresh_case_id_count_label()
+
+    def clear_comment(self) -> None:
+        self.comment.clear()
+
+
+class _IssueButtonProxy(QObject):
+    clicked = pyqtSignal()
+
+
+class CurrentPageStack(QStackedWidget):
+    def sizeHint(self):  # type: ignore[override]
+        current = self.currentWidget()
+        return current.sizeHint() if current else super().sizeHint()
+
+    def minimumSizeHint(self):  # type: ignore[override]
+        current = self.currentWidget()
+        return current.minimumSizeHint() if current else super().minimumSizeHint()
+
+
+class IssueEditorWidget(QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        self.add_issue_btn = _IssueButtonProxy(self)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        self.stack = CurrentPageStack()
+        self.legacy_panel = LegacyIssueEditorPanel()
+        self.urban_city_panel = UrbanCityIssueEditorPanel()
+        self.campus_road_panel = CampusRoadIssueEditorPanel()
+        self.campus_field_panel = CampusFieldIssueEditorPanel()
+        self.function_check_panel = FunctionCheckIssueEditorPanel()
+        self.parking_panel = ParkingIssueEditorPanel()
+        self.highway_panel = HighwayIssueEditorPanel()
+        self.active_safety_panel = ActiveSafetyIssueEditorPanel()
+        self.stack.addWidget(self.legacy_panel)
+        self.stack.addWidget(self.urban_city_panel)
+        self.stack.addWidget(self.campus_road_panel)
+        self.stack.addWidget(self.campus_field_panel)
+        self.stack.addWidget(self.function_check_panel)
+        self.stack.addWidget(self.parking_panel)
+        self.stack.addWidget(self.highway_panel)
+        self.stack.addWidget(self.active_safety_panel)
+        layout.addWidget(self.stack)
+
+        self.legacy_panel.add_issue_btn.clicked.connect(lambda: self.add_issue_btn.clicked.emit())
+        self.urban_city_panel.add_issue_btn.clicked.connect(lambda: self.add_issue_btn.clicked.emit())
+        self.campus_road_panel.add_issue_btn.clicked.connect(lambda: self.add_issue_btn.clicked.emit())
+        self.campus_field_panel.add_issue_btn.clicked.connect(lambda: self.add_issue_btn.clicked.emit())
+        self.function_check_panel.add_issue_btn.clicked.connect(lambda: self.add_issue_btn.clicked.emit())
+        self.parking_panel.add_issue_btn.clicked.connect(lambda: self.add_issue_btn.clicked.emit())
+        self.highway_panel.add_issue_btn.clicked.connect(lambda: self.add_issue_btn.clicked.emit())
+        self.active_safety_panel.add_issue_btn.clicked.connect(lambda: self.add_issue_btn.clicked.emit())
+
+    def set_test_function(self, test_function: str) -> None:
+        test_function = normalize_test_function(test_function)
+        if test_function == ACTIVE_SAFETY_TEST_FUNCTION:
+            self.stack.setCurrentWidget(self.active_safety_panel)
+        elif test_function == URBAN_TEST_FUNCTION:
+            self.stack.setCurrentWidget(self.urban_city_panel)
+        elif test_function == PARKING_TEST_FUNCTION:
+            self.stack.setCurrentWidget(self.parking_panel)
+        elif test_function == CAMPUS_FIELD_TEST_FUNCTION:
+            self.stack.setCurrentWidget(self.campus_field_panel)
+        elif test_function == FUNCTION_CHECK_TEST_FUNCTION:
+            self.stack.setCurrentWidget(self.function_check_panel)
+        elif test_function == CAMPUS_ROAD_TEST_FUNCTION:
+            self.stack.setCurrentWidget(self.campus_road_panel)
+        elif test_function == HIGHWAY_TEST_FUNCTION:
+            self.stack.setCurrentWidget(self.highway_panel)
+        else:
+            self.stack.setCurrentWidget(self.legacy_panel)
+        self.stack.updateGeometry()
+        self.updateGeometry()
+
+    def get_issue_payload(self) -> Dict[str, str]:
+        panel = self.stack.currentWidget()
+        if panel is self.active_safety_panel:
+            return self.active_safety_panel.get_issue_payload()
+        if panel is self.urban_city_panel:
+            return self.urban_city_panel.get_issue_payload()
+        if panel is self.campus_field_panel:
+            return self.campus_field_panel.get_issue_payload()
+        if panel is self.function_check_panel:
+            return self.function_check_panel.get_issue_payload()
+        if panel is self.parking_panel:
+            return self.parking_panel.get_issue_payload()
+        if panel is self.campus_road_panel:
+            return self.campus_road_panel.get_issue_payload()
+        if panel is self.highway_panel:
+            return self.highway_panel.get_issue_payload()
+        return self.legacy_panel.get_issue_payload()
+
+    def set_issue_count(self, count: int) -> None:
+        self.legacy_panel.set_issue_count(count)
+        self.urban_city_panel.set_issue_count(count)
+        self.campus_road_panel.set_issue_count(count)
+        self.campus_field_panel.set_issue_count(count)
+        self.function_check_panel.set_issue_count(count)
+        self.parking_panel.set_issue_count(count)
+        self.highway_panel.set_issue_count(count)
+        self.active_safety_panel.set_issue_count(count)
+
+    def set_case_id_counts(self, counts: Dict[str, int]) -> None:
+        self.campus_field_panel.set_case_id_counts(counts)
+        self.function_check_panel.set_case_id_counts(counts)
+        self.parking_panel.set_case_id_counts(counts)
+        self.active_safety_panel.set_case_id_counts(counts)
+
+    def clear_comment(self) -> None:
+        panel = self.stack.currentWidget()
+        if panel is self.active_safety_panel:
+            self.active_safety_panel.clear_comment()
+        elif panel is self.urban_city_panel:
+            self.urban_city_panel.clear_comment()
+        elif panel is self.campus_field_panel:
+            self.campus_field_panel.clear_comment()
+        elif panel is self.function_check_panel:
+            self.function_check_panel.clear_comment()
+        elif panel is self.parking_panel:
+            self.parking_panel.clear_comment()
+        elif panel is self.campus_road_panel:
+            self.campus_road_panel.clear_comment()
+        elif panel is self.highway_panel:
+            self.highway_panel.clear_comment()
+        else:
+            self.legacy_panel.clear_comment()
